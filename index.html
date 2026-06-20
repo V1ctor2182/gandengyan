@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#1e6f49" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#15140f" media="(prefers-color-scheme: dark)" />
+<title>干瞪眼记分</title>
+<style>
+  /* ---- Tokens ----
+     Radius system: surfaces 18 / controls 11 / pills full.
+     One accent (pine green). Negative is a semantic brick, not a 2nd brand color. */
+  :root{
+    --bg:#e9e6dd; --surface:#f6f4ee; --raised:#fbfaf5;
+    --ink:#1c1b17; --muted:#6f6c62; --faint:#9b988c;
+    --line:rgba(28,27,23,.10); --line-2:rgba(28,27,23,.06);
+    --accent:#1e6f49; --accent-ink:#0f4d31; --accent-wash:rgba(30,111,73,.10);
+    --brick:#ad3f2c; --brick-wash:rgba(173,63,44,.10);
+    --on-accent:#f6f4ee;
+    --r-s:18px; --r-c:11px;
+    --shadow:0 18px 40px -22px rgba(20,18,12,.45);
+    --sheet-sh:0 -18px 60px -20px rgba(20,18,12,.5);
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace;
+    --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,BlinkMacSystemFont,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#15140f; --surface:#211f18; --raised:#2a271f;
+      --ink:#efece1; --muted:#a4a092; --faint:#6f6c61;
+      --line:rgba(255,255,255,.10); --line-2:rgba(255,255,255,.05);
+      --accent:#52b585; --accent-ink:#7fd0a7; --accent-wash:rgba(82,181,133,.14);
+      --brick:#dd7a62; --brick-wash:rgba(221,122,98,.14);
+      --on-accent:#0c1f16;
+      --shadow:0 20px 46px -22px rgba(0,0,0,.7);
+      --sheet-sh:0 -20px 60px -16px rgba(0,0,0,.75);
+    }
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:var(--sans);color:var(--ink);background:var(--bg);
+    min-height:100dvh;-webkit-font-smoothing:antialiased;
+    padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    letter-spacing:.01em;
+  }
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:0}
+  .wrap{max-width:520px;margin:0 auto;padding:8px 18px 110px}
+
+  /* ---- header ---- */
+  header{display:flex;align-items:center;justify-content:space-between;padding:16px 2px 20px}
+  .brand{display:flex;align-items:center;gap:11px}
+  .brand .mk{width:30px;height:30px;color:var(--accent);flex:none}
+  .brand h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.02em}
+  .brand .sub{font-size:11px;color:var(--faint);margin-top:2px;letter-spacing:.18em;text-transform:uppercase}
+  .hbtns{display:flex;gap:6px}
+  .icon-btn{background:none;border:none;color:var(--muted);width:40px;height:40px;border-radius:var(--r-c);display:grid;place-items:center;cursor:pointer;transition:background .15s,color .15s}
+  .icon-btn svg{width:21px;height:21px}
+  .icon-btn:hover{color:var(--ink);background:var(--surface)}
+  .icon-btn:active{transform:scale(.92)}
+
+  /* ---- scoreboard ---- */
+  .sec-head{display:flex;align-items:baseline;justify-content:space-between;padding:0 2px 12px}
+  .sec-head .t{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  .sec-head .meta{font-size:12px;color:var(--faint)}
+  .board{background:var(--surface);border-radius:var(--r-s);overflow:hidden;box-shadow:var(--shadow)}
+  .prow{display:flex;align-items:center;gap:14px;padding:16px 18px;position:relative;border-top:1px solid var(--line-2)}
+  .prow:first-child{border-top:none}
+  .prow .rank{width:22px;font-size:13px;font-weight:700;color:var(--faint);flex:none;text-align:center}
+  .prow .nm{flex:1;font-weight:600;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .prow .lead-tag{font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 7px;margin-left:8px;vertical-align:middle}
+  .prow .sc{font-size:27px;font-weight:600;line-height:1}
+  .sc.pos{color:var(--accent)}.sc.neg{color:var(--brick)}.sc.zero{color:var(--faint)}
+  .prow.lead{background:var(--accent-wash)}
+  .prow.lead::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+  .prow.lead .rank{color:var(--accent)}
+  .empty{color:var(--muted);text-align:center;padding:30px 16px;font-size:14px;line-height:1.7}
+
+  /* session bar + list */
+  .sessionbar{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-c);padding:11px 14px;margin:0 0 16px;cursor:pointer;transition:background .15s}
+  .sessionbar:hover{background:var(--raised)}
+  .sessionbar:active{transform:scale(.995)}
+  .sessionbar .sicon{color:var(--accent);flex:none;display:grid;place-items:center}
+  .sessionbar .sicon svg{width:20px;height:20px;display:block}
+  .sessionbar .st{flex:1;min-width:0}
+  .sessionbar .snm{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sessionbar .smeta{font-size:12px;color:var(--faint);margin-top:1px}
+  .sessionbar .chev{font-size:13px;color:var(--muted);flex:none;font-weight:600}
+  .srow{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-c);padding:12px 14px;margin-bottom:10px}
+  .srow.cur{border-color:var(--accent);background:var(--accent-wash)}
+  .srow .smain{flex:1;min-width:0;cursor:pointer}
+  .srow .snm{font-weight:700;font-size:15.5px}
+  .srow .curtag{font-size:10px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:1px 6px;margin-left:6px;font-weight:700;vertical-align:middle}
+  .srow .smeta{font-size:12px;color:var(--muted);margin-top:3px}
+  .srow .sacts{display:flex;gap:2px;flex:none}
+  .srow .sbtn{background:none;border:none;color:var(--faint);width:34px;height:34px;border-radius:9px;display:grid;place-items:center;cursor:pointer}
+  .srow .sbtn:active{color:var(--brick);background:var(--bg)}
+  .srow .sbtn svg{width:16px;height:16px}
+
+  /* stats / 走势 */
+  .chartbox{background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-s);padding:14px 12px 12px;margin-bottom:14px}
+  .legend{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+  .lgi{display:flex;align-items:center;gap:6px;font-size:12.5px;padding:4px 10px;border-radius:999px;background:var(--bg);cursor:pointer;border:1px solid transparent;transition:.12s}
+  .lgi.dim{opacity:.42}
+  .lgi.sel{border-color:var(--ink);font-weight:700}
+  .sw{width:10px;height:10px;border-radius:3px;flex:none;display:inline-block}
+  .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+  .statcard{background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-c);padding:12px 13px}
+  .statcard .k{font-size:11.5px;color:var(--muted);font-weight:700;letter-spacing:.04em}
+  .statcard .v{font-size:21px;font-weight:700;margin-top:5px}
+  .statcard .s{font-size:11.5px;color:var(--faint);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sttable{background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-s);overflow:hidden}
+  .sttable .r{display:grid;grid-template-columns:20px 1fr 58px 48px 48px;gap:8px;align-items:center;padding:11px 13px;border-top:1px solid var(--line-2)}
+  .sttable .r:first-child{border-top:none}
+  .sttable .r.head{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.04em}
+  .sttable .rk{color:var(--faint);font-weight:700;font-size:12px;text-align:center}
+  .sttable .nm{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sttable .nm .sw{margin-right:7px;vertical-align:middle}
+  .sttable .col{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;font-size:13.5px}
+
+  /* ---- buttons ---- */
+  .btn{border:none;border-radius:var(--r-c);font-family:inherit;font-size:16px;font-weight:600;padding:15px;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:9px;transition:transform .08s,filter .15s}
+  .btn svg{width:19px;height:19px}
+  .btn:active{transform:translateY(1px) scale(.99)}
+  .btn-primary{background:var(--accent);color:var(--on-accent)}
+  .btn-primary:hover{filter:brightness(1.06)}
+  .btn-ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+  .btn-danger{background:none;color:var(--brick);border:1px solid var(--brick-wash)}
+  .btn-row{display:flex;gap:10px}
+
+  .fab{position:fixed;left:0;right:0;bottom:0;padding:14px 18px calc(16px + env(safe-area-inset-bottom));max-width:520px;margin:0 auto;
+       background:linear-gradient(180deg,transparent,var(--bg) 46%)}
+  .fab .btn-primary{box-shadow:0 12px 30px -10px rgba(30,111,73,.6)}
+
+  /* ---- sheets ---- */
+  .mask{position:fixed;inset:0;background:rgba(16,14,9,.5);display:none;align-items:flex-end;justify-content:center;z-index:30}
+  @media (prefers-reduced-motion:no-preference){.mask{backdrop-filter:blur(2px)}}
+  .mask.on{display:flex}
+  .sheet{background:var(--bg);width:100%;max-width:520px;border-radius:24px 24px 0 0;max-height:92dvh;overflow-y:auto;
+         padding:8px 18px calc(22px + env(safe-area-inset-bottom));box-shadow:var(--sheet-sh)}
+  @media (prefers-reduced-motion:no-preference){.sheet{animation:up .28s cubic-bezier(.16,1,.3,1)}}
+  @keyframes up{from{transform:translateY(48px)}to{transform:translateY(0)}}
+  .grip{width:38px;height:4px;border-radius:99px;background:var(--line);margin:8px auto 4px}
+  .sheet h3{margin:6px 0 16px;font-size:18px;text-align:center;font-weight:700}
+  .label{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.04em;margin:18px 2px 9px}
+
+  /* ---- winner chips ---- */
+  .chips{display:flex;flex-wrap:wrap;gap:9px}
+  .chip{padding:11px 17px;border-radius:999px;background:var(--surface);color:var(--ink);font-weight:600;font-size:15px;border:1px solid var(--line);cursor:pointer;transition:.12s}
+  .chip:active{transform:scale(.96)}
+  .chip.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+
+  /* ---- loser card ---- */
+  .lcard{background:var(--surface);border-radius:var(--r-s);padding:14px 15px;margin-bottom:11px;border:1px solid var(--line-2)}
+  .lcard .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+  .lcard .top .lnm{font-weight:700;font-size:16px}
+  .lcard .top .lsc{font-weight:600;font-size:22px;color:var(--brick)}
+  .calc{font-size:12px;color:var(--faint);min-height:16px;margin-bottom:11px}
+  .stepgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+  .stepper{display:flex;align-items:center;justify-content:space-between;gap:6px}
+  .stepper .sl{font-size:13.5px;color:var(--muted);flex:1}
+  .stepper .ctrl{display:flex;align-items:center;gap:3px;background:var(--bg);border-radius:999px;padding:3px}
+  .stepper button{width:30px;height:30px;border-radius:50%;border:none;background:var(--raised);color:var(--ink);font-size:18px;font-weight:600;display:grid;place-items:center;cursor:pointer;line-height:1;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .stepper button:active{transform:scale(.88)}
+  .stepper button:disabled{opacity:.32;box-shadow:none}
+  .stepper .v{min-width:20px;text-align:center;font-weight:600;font-size:16px}
+  .heldhint{display:flex;align-items:center;justify-content:center;font-size:12.5px;color:var(--faint);border:1px dashed var(--line);border-radius:999px;padding:6px;transition:.15s}
+  .heldhint.on{color:var(--accent);border-style:solid;border-color:var(--accent);background:var(--accent-wash);font-weight:700}
+
+  .dealbomb{display:flex;align-items:center;gap:12px;background:var(--accent-wash);border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);border-radius:var(--r-c);padding:13px 15px;margin:8px 0 4px}
+  .dealbomb .t{flex:1}.dealbomb .b1{font-weight:700;font-size:15px}.dealbomb .b2{font-size:12px;color:var(--muted);margin-top:2px}
+  .dealbomb .ctrl{display:flex;align-items:center;gap:3px;background:var(--bg);border-radius:999px;padding:3px;flex:none}
+  .dealbomb .ctrl button{width:32px;height:32px;border-radius:50%;border:none;background:var(--raised);color:var(--ink);font-size:19px;font-weight:600;display:grid;place-items:center;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.08);line-height:1}
+  .dealbomb .ctrl button:active{transform:scale(.88)}
+  .dealbomb .ctrl button:disabled{opacity:.32;box-shadow:none}
+  .dealbomb .ctrl .v{min-width:22px;text-align:center;font-weight:600;font-size:16px}
+  .winsum{text-align:center;color:var(--accent);font-weight:700;font-size:15px;margin:16px 0 10px}
+
+  /* ---- history ---- */
+  .hrow{background:var(--surface);border-radius:var(--r-c);padding:13px 15px;margin-bottom:10px;border:1px solid var(--line-2)}
+  .hrow .hh{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+  .hrow .hidx{font-size:12px;color:var(--faint);font-weight:600;flex:none}
+  .hrow .win{font-weight:700;color:var(--accent);font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hrow .del{background:none;border:none;color:var(--faint);cursor:pointer;padding:4px;display:grid;place-items:center;flex:none}
+  .hrow .del svg{width:16px;height:16px}
+  .hrow .del:active{color:var(--brick)}
+  .hd{display:flex;flex-wrap:wrap;gap:7px}
+  .pill{font-size:12px;background:var(--bg);border-radius:8px;padding:4px 9px;color:var(--muted)}
+  .pill b{color:var(--brick);font-weight:700;margin-left:5px}
+  .pill b.up{color:var(--accent)}
+
+  /* ---- players edit ---- */
+  .prow-edit{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .prow-edit input{flex:1;border:1px solid var(--line);border-radius:var(--r-c);padding:13px 14px;font-size:16px;background:var(--surface);color:var(--ink);font-family:inherit}
+  .prow-edit input:focus{outline:none;border-color:var(--accent)}
+  .prow-edit .rm{background:var(--brick-wash);color:var(--brick);border:none;width:44px;height:44px;border-radius:var(--r-c);cursor:pointer;flex:none;display:grid;place-items:center}
+  .prow-edit .rm svg{width:17px;height:17px}
+  .addp{background:none;border:1.5px dashed var(--line);color:var(--muted)}
+
+  .note{font-size:12.5px;color:var(--muted);line-height:1.75}
+  .rulebox{background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-c);padding:14px 15px;margin-top:4px}
+  .rulebox b{color:var(--ink)}
+  .menu-item{margin-bottom:11px}
+  .menu-item .btn{justify-content:flex-start;gap:12px}
+  .toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translate(-50%,12px);
+    background:var(--ink);color:var(--bg);font-size:14px;font-weight:600;padding:11px 20px;border-radius:999px;
+    z-index:50;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;box-shadow:var(--shadow)}
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg class="mk" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6C8.7 7 4 9.3 4 13.4c0 2.4 1.9 4.1 4.1 4.1 1.1 0 2-.4 2.7-1.1-.2 1.8-1 3.1-2.3 4h7c-1.3-.9-2.1-2.2-2.3-4 .7.7 1.6 1.1 2.7 1.1 2.2 0 4.1-1.7 4.1-4.1C20 9.3 15.3 7 12 2.6Z"/></svg>
+      <div>
+        <h1>干瞪眼记分</h1>
+        <div class="sub">Scorecard</div>
+      </div>
+    </div>
+    <div class="hbtns">
+      <button class="icon-btn" id="btnStats" aria-label="战绩走势">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v15.5a.5.5 0 0 0 .5.5H20"/><path d="M7.5 14.5 11 10l3 2.5 4-5.5"/></svg>
+      </button>
+      <button class="icon-btn" id="btnHist" aria-label="历史">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.6V12l3 1.8"/></svg>
+      </button>
+      <button class="icon-btn" id="btnPlayers" aria-label="玩家">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.1"/><path d="M3.8 18.6c0-2.9 2.4-4.7 5.2-4.7s5.2 1.8 5.2 4.7"/><path d="M16 5.7a3 3 0 0 1 0 5.4"/><path d="M17.3 13.6c2.2.5 3.6 2 3.6 4.4"/></svg>
+      </button>
+      <button class="icon-btn" id="btnMenu" aria-label="更多">
+        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="sessionbar" id="sessionBar"></div>
+  <div class="sec-head"><span class="t">总分榜</span><span class="meta" id="roundCount"></span></div>
+  <div class="board" id="board"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="fab">
+  <button class="btn btn-primary" id="btnNew">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>记一局
+  </button>
+</div>
+
+<!-- New round -->
+<div class="mask" id="mNew"><div class="sheet">
+  <div class="grip"></div><h3>记一局</h3>
+  <div class="label">谁赢了（先出完牌的）</div>
+  <div class="chips" id="winnerChips"></div>
+  <div id="loserArea"></div>
+  <div class="dealbomb" id="dealBombBox">
+    <div class="t"><div class="b1">本局场上出过的炸弹数</div><div class="b2">每个炸弹，所有输家再 ×2</div></div>
+    <div class="ctrl">
+      <button id="dbMinus">−</button>
+      <div class="v num" id="dbVal">0</div>
+      <button id="dbPlus">+</button>
+    </div>
+  </div>
+  <div class="winsum" id="winSum"></div>
+  <div class="btn-row">
+    <button class="btn btn-ghost" id="newCancel">取消</button>
+    <button class="btn btn-primary" id="newSave">确认记录</button>
+  </div>
+</div></div>
+
+<!-- History -->
+<div class="mask" id="mHist"><div class="sheet">
+  <div class="grip"></div><h3>对局历史</h3>
+  <div id="histList"></div>
+  <button class="btn btn-ghost" id="histClose" style="margin-top:6px">关闭</button>
+</div></div>
+
+<!-- Sessions -->
+<div class="mask" id="mSessions"><div class="sheet">
+  <div class="grip"></div><h3>对局列表</h3>
+  <button class="btn btn-primary" id="newSessionBtn" style="margin-bottom:14px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>开新对局
+  </button>
+  <div id="sessionList"></div>
+  <div class="note" style="margin:8px 2px 0">点对局可切换查看；开新对局会沿用当前玩家，旧对局自动存档保留。</div>
+  <button class="btn btn-ghost" id="sessionsClose" style="margin-top:14px">关闭</button>
+</div></div>
+
+<!-- Stats -->
+<div class="mask" id="mStats"><div class="sheet">
+  <div class="grip"></div><h3>战绩 · 走势</h3>
+  <div id="statsBody"></div>
+  <button class="btn btn-ghost" id="statsClose" style="margin-top:14px">关闭</button>
+</div></div>
+
+<!-- Players -->
+<div class="mask" id="mPlayers"><div class="sheet">
+  <div class="grip"></div><h3>玩家设置</h3>
+  <div id="playerEdit"></div>
+  <button class="btn addp" id="addPlayer" style="margin:4px 0 14px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>添加玩家
+  </button>
+  <div class="note">2–12 人。改名不影响已记录的分数；减少玩家不会删除历史，但建议开新对局。</div>
+  <button class="btn btn-ghost" id="playersClose" style="margin-top:14px">完成</button>
+</div></div>
+
+<!-- Menu -->
+<div class="mask" id="mMenu"><div class="sheet">
+  <div class="grip"></div><h3>更多</h3>
+  <div class="menu-item"><button class="btn btn-ghost" id="undoLast">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7 5 11l4 4"/><path d="M5 11h9a5 5 0 0 1 0 10"/></svg>撤销最近一局
+  </button></div>
+  <div class="menu-item"><button class="btn btn-ghost" id="newGame">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v12M6 12h12"/></svg>开新对局（保留玩家，旧局存档）
+  </button></div>
+  <div class="btn-row" style="margin-bottom:11px">
+    <button class="btn btn-ghost" id="exportData">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10M8 11l4 3 4-3"/><path d="M5 19h14"/></svg>导出备份
+    </button>
+    <button class="btn btn-ghost" id="importData">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14V4M8 7l4-3 4 3"/><path d="M5 19h14"/></svg>导入备份
+    </button>
+  </div>
+  <div class="note" style="margin:0 2px 6px">数据存在本设备浏览器数据库中，关闭浏览器不会丢。换设备或防清缓存可导出备份。</div>
+  <div class="rulebox note">
+    <b>算分规则</b><br>
+    每个输家：剩牌数 × 2^(2的个数) × 2^(炸弹个数) ×（剩牌≥5 关到底 ×2）× 2^(场上炸弹数)，封顶 100。<br>
+    赢家收走所有输家之和（零和）。三张及以上算炸弹，2 不入顺，能拆炸弹。
+  </div>
+  <button class="btn btn-ghost" id="menuClose" style="margin-top:14px">关闭</button>
+</div></div>
+
+<script>
+"use strict";
+const KEY="gdy_state_v1";
+const $=s=>document.querySelector(s);
+const el=(t,c)=>{const e=document.createElement(t);if(c)e.className=c;return e;};
+const CHECK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17 19 7"/></svg>';
+const XMARK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+const TRASH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 12h10l1-12"/></svg>';
+const PENCIL='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="M14 6l4 4"/></svg>';
+
+let _seq=0;
+function pid(){return "p"+(performance.now()|0).toString(36)+(_seq++).toString(36);}
+function sid(){return "s"+(performance.now()|0).toString(36)+(_seq++).toString(36);}
+function esc(s){return (s+"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function fmtDate(ts){const d=new Date(ts||Date.now());return (d.getMonth()+1)+"月"+d.getDate()+"日";}
+function newPlayers(){return [{id:pid(),name:"玩家1"},{id:pid(),name:"玩家2"},{id:pid(),name:"玩家3"}];}
+function defaultDB(){const s={id:sid(),name:"对局 1",ts:Date.now(),players:newPlayers(),rounds:[]};return {sessions:[s],currentId:s.id,counter:1};}
+function migrate(o){
+  if(o&&Array.isArray(o.sessions)&&o.sessions.length){if(!o.sessions.find(s=>s.id===o.currentId))o.currentId=o.sessions[0].id;if(typeof o.counter!=="number")o.counter=o.sessions.length;return o;}
+  if(o&&Array.isArray(o.players)){const s={id:sid(),name:"对局 1",ts:Date.now(),players:o.players,rounds:Array.isArray(o.rounds)?o.rounds:[]};return {sessions:[s],currentId:s.id,counter:1};}
+  return defaultDB();
+}
+
+/* ---- 本地数据库：IndexedDB（关浏览器不丢、更耐清理），localStorage 双写备份 ---- */
+const DB_NAME="gdy_db",STORE="kv";
+function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);
+  r.onupgradeneeded=()=>r.result.createObjectStore(STORE);
+  r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function dbGet(k){const db=await openDB();return new Promise((res,rej)=>{
+  const q=db.transaction(STORE).objectStore(STORE).get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error);});}
+async function dbSet(k,v){const db=await openDB();return new Promise((res,rej)=>{
+  const tx=db.transaction(STORE,"readwrite");tx.objectStore(STORE).put(v,k);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
+
+let db=defaultDB();
+let state=db.sessions[0];
+function cur(){return db.sessions.find(s=>s.id===db.currentId)||db.sessions[0];}
+function save(){
+  try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){}
+  if(window.indexedDB)dbSet("state",db).catch(()=>{});
+}
+async function boot(){
+  let s=null;
+  if(window.indexedDB){try{s=await dbGet("state");}catch(e){}}
+  if(!s){try{const ls=localStorage.getItem(KEY);if(ls)s=JSON.parse(ls);}catch(e){}}
+  db=migrate(s);state=cur();save();renderAll();
+}
+function renderAll(){renderBoard();renderSessionBar();if($("#mSessions").classList.contains("on"))renderSessions();}
+
+/* ---- 对局（session）管理 ---- */
+function newSession(){
+  db.counter=(db.counter||0)+1;
+  const players=state.players.map(p=>({id:pid(),name:p.name}));
+  db.sessions.push({id:sid(),name:"对局 "+db.counter,ts:Date.now(),players,rounds:[]});
+  db.currentId=db.sessions[db.sessions.length-1].id;state=cur();save();renderAll();toast("已开新对局");
+}
+function switchSession(id){db.currentId=id;state=cur();save();renderAll();}
+function deleteSession(id){
+  db.sessions=db.sessions.filter(s=>s.id!==id);
+  if(!db.sessions.length)db=defaultDB();
+  else if(!db.sessions.find(s=>s.id===db.currentId))db.currentId=[...db.sessions].sort((a,b)=>b.ts-a.ts)[0].id;
+  state=cur();save();renderAll();
+}
+function renderSessionBar(){
+  const bar=$("#sessionBar"),n=state.rounds.length;
+  bar.innerHTML='<span class="sicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 7.5 12 12l9-4.5L12 3Z"/><path d="M3 12l9 4.5L21 12"/><path d="M3 16.5 12 21l9-4.5"/></svg></span>'
+    +'<div class="st"><div class="snm">'+esc(state.name||"对局")+'</div><div class="smeta">'+(n?n+" 局 · ":"")+fmtDate(state.ts)+'</div></div>'
+    +'<span class="chev">切换 ›</span>';
+}
+function renderSessions(){
+  const box=$("#sessionList");box.innerHTML="";
+  [...db.sessions].sort((a,b)=>b.ts-a.ts).forEach(s=>{
+    const t=totals(s);let ln="",lv=null;
+    s.players.forEach(p=>{if(lv===null||t[p.id]>lv){lv=t[p.id];ln=p.name;}});
+    const isCur=s.id===db.currentId,row=el("div","srow"+(isCur?" cur":"")),main=el("div","smain");
+    main.innerHTML='<div class="snm">'+esc(s.name||"对局")+(isCur?' <span class="curtag">当前</span>':'')
+      +'</div><div class="smeta">'+fmtDate(s.ts)+' · '+s.rounds.length+' 局'
+      +(s.rounds.length?' · 领先 '+esc(ln)+' +'+lv:' · 未开始')+'</div>';
+    main.onclick=()=>{switchSession(s.id);hide("#mSessions");toast("已切到「"+(s.name||"对局")+"」");};
+    const acts=el("div","sacts");
+    const ren=el("button","sbtn");ren.innerHTML=PENCIL;ren.setAttribute("aria-label","重命名");
+    ren.onclick=e=>{e.stopPropagation();const nn=prompt("对局名称",s.name||"");if(nn!==null){s.name=nn.trim()||s.name;save();renderAll();}};
+    const del=el("button","sbtn");del.innerHTML=TRASH;del.setAttribute("aria-label","删除");
+    del.onclick=e=>{e.stopPropagation();if(!confirm("删除「"+(s.name||"对局")+"」？该对局记录将永久删除。"))return;deleteSession(s.id);};
+    acts.append(ren,del);row.append(main,acts);box.appendChild(row);
+  });
+}
+
+/* ---- scoring ---- */
+function held(l){return !!(l&&(l.allHeld||(l.cards||0)>=5));}  /* 剩满5张=关到底，自动×2 */
+function rawScore(l,dealBomb){
+  let s=Math.max(0,l.cards||0);
+  s*=Math.pow(2,l.twos||0);s*=Math.pow(2,l.bombs||0);
+  if(held(l))s*=2;s*=Math.pow(2,dealBomb||0);return s;
+}
+function scoreOf(l,dealBomb){return l?Math.min(rawScore(l,dealBomb),100):0;}
+function calcText(l,dealBomb){
+  if(!l||!l.cards)return "";
+  const p=[String(l.cards)];
+  for(let i=0;i<(l.twos||0);i++)p.push("2(2)");
+  for(let i=0;i<(l.bombs||0);i++)p.push("2(炸)");
+  if(held(l))p.push("2(关)");
+  for(let i=0;i<(dealBomb||0);i++)p.push("2(场炸)");
+  const raw=rawScore(l,dealBomb);
+  let t=p.join(" × ")+" = "+raw;
+  if(raw>100)t+=" → 100(封顶)";
+  return t;
+}
+function totals(sess){
+  sess=sess||state;
+  const t={};sess.players.forEach(p=>t[p.id]=0);
+  sess.rounds.forEach(r=>{
+    if(r.deltas){for(const id in r.deltas)if(t[id]!==undefined)t[id]+=r.deltas[id];return;}
+    let sum=0;
+    sess.players.forEach(p=>{
+      if(p.id===r.winnerId)return;
+      const sc=scoreOf(r.losers[p.id],r.dealBomb);
+      if(t[p.id]!==undefined)t[p.id]-=sc;sum+=sc;
+    });
+    if(t[r.winnerId]!==undefined)t[r.winnerId]+=sum;
+  });
+  return t;
+}
+function nameOf(id){const p=state.players.find(p=>p.id===id);return p?p.name:"(已删)";}
+function roundSum(r){let s=0;state.players.forEach(p=>{if(p.id!==r.winnerId)s+=scoreOf(r.losers[p.id],r.dealBomb);});return s;}
+
+/* ---- board ---- */
+function renderBoard(){
+  const t=totals(),board=$("#board");board.innerHTML="";
+  $("#roundCount").textContent=state.rounds.length?"已记 "+state.rounds.length+" 局":"尚无记录";
+  if(!state.players.length){board.innerHTML='<div class="empty">还没有玩家，点右上角添加</div>';return;}
+  const order=[...state.players].sort((a,b)=>t[b.id]-t[a.id]);
+  const max=Math.max(...order.map(p=>t[p.id]));
+  order.forEach((p,i)=>{
+    const v=t[p.id],lead=state.rounds.length>0&&v===max&&v>0;
+    const row=el("div","prow"+(lead?" lead":""));
+    const rank=el("div","rank");rank.textContent=i+1;
+    const nm=el("div","nm");nm.textContent=p.name;
+    if(lead){const tag=el("span","lead-tag");tag.textContent="领先";nm.appendChild(tag);}
+    const sc=el("div","sc num "+(v>0?"pos":v<0?"neg":"zero"));sc.textContent=(v>0?"+":"")+v;
+    row.append(rank,nm,sc);board.appendChild(row);
+  });
+}
+
+/* ---- 战绩 / 走势 ---- */
+const PAL=["#2f6f4f","#c0563a","#3a6ea5","#b8902f","#8a5fb0","#4aa6a0","#c76a8e","#6b8e3a","#d08a3e","#5a6470"];
+function roundDeltas(r,sess){
+  sess=sess||state;
+  if(r.deltas)return r.deltas;
+  const d={};let sum=0;
+  sess.players.forEach(p=>{if(p.id===r.winnerId)return;const sc=scoreOf(r.losers&&r.losers[p.id],r.dealBomb);d[p.id]=-sc;sum+=sc;});
+  d[r.winnerId]=(d[r.winnerId]||0)+sum;
+  return d;
+}
+let statFocus=null;
+function renderStats(){
+  const sess=state,box=$("#statsBody"),players=sess.players,N=sess.rounds.length;
+  if(!N){box.innerHTML='<div class="empty">这盘还没有记录，记几局后再来看走势。</div>';return;}
+  const cum={},per={};players.forEach(p=>{cum[p.id]=[0];per[p.id]=[];});
+  sess.rounds.forEach(r=>{const d=roundDeltas(r,sess);players.forEach(p=>{const v=d[p.id]||0;per[p.id].push(v);cum[p.id].push(cum[p.id][cum[p.id].length-1]+v);});});
+  let minY=0,maxY=0;players.forEach(p=>cum[p.id].forEach(v=>{if(v<minY)minY=v;if(v>maxY)maxY=v;}));
+  const W=720,H=300,pL=8,pR=8,pT=16,pB=18,span=(maxY-minY)||1;
+  const X=k=>pL+(N?k/N:0)*(W-pL-pR),Y=v=>pT+(maxY-v)/span*(H-pT-pB);
+  let lines="";
+  players.map((p,i)=>({p,i})).sort((a,b)=>(statFocus===a.p.id?1:0)-(statFocus===b.p.id?1:0)).forEach(({p,i})=>{
+    const pts=cum[p.id].map((v,k)=>X(k).toFixed(1)+","+Y(v).toFixed(1)).join(" ");
+    if(statFocus&&statFocus!==p.id)lines+='<polyline points="'+pts+'" fill="none" style="stroke:var(--line)" stroke-opacity="0.7" stroke-width="1.4" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>';
+    else lines+='<polyline points="'+pts+'" fill="none" stroke="'+PAL[i%PAL.length]+'" stroke-width="'+(statFocus===p.id?3.2:2)+'" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>';
+  });
+  const svg='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block">'
+    +'<line x1="'+pL+'" y1="'+Y(0).toFixed(1)+'" x2="'+(W-pR)+'" y2="'+Y(0).toFixed(1)+'" style="stroke:var(--line)" stroke-width="1" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>'
+    +'<text x="'+(pL+2)+'" y="'+(pT+9)+'" font-size="15" style="fill:var(--faint)">+'+maxY+'</text>'
+    +'<text x="'+(pL+2)+'" y="'+(H-pB+13)+'" font-size="15" style="fill:var(--faint)">'+minY+'</text>'
+    +lines+'</svg>';
+  let leg='<div class="legend">';
+  players.forEach((p,i)=>{const sel=statFocus===p.id,dim=statFocus&&!sel;
+    leg+='<div class="lgi'+(sel?' sel':'')+(dim?' dim':'')+'" data-pid="'+p.id+'"><span class="sw" style="background:'+PAL[i%PAL.length]+'"></span>'+esc(p.name)+'</div>';});
+  leg+='</div>';
+  let best={v:-Infinity,n:"",k:0},worst={v:Infinity,n:"",k:0};
+  players.forEach(p=>per[p.id].forEach((v,k)=>{if(v>best.v)best={v,n:p.name,k};if(v<worst.v)worst={v,n:p.name,k};}));
+  const stdv=a=>{if(!a.length)return 0;const m=a.reduce((x,y)=>x+y,0)/a.length;return Math.sqrt(a.reduce((x,y)=>x+(y-m)*(y-m),0)/a.length);};
+  let calm={s:Infinity,n:""},wild={s:-Infinity,n:""};
+  players.forEach(p=>{const s=stdv(per[p.id]);if(s<calm.s)calm={s,n:p.name};if(s>wild.s)wild={s,n:p.name};});
+  const tot=totals(sess),sorted=[...players].sort((a,b)=>tot[b.id]-tot[a.id]);
+  const lead=sorted.length>1?tot[sorted[0].id]-tot[sorted[1].id]:tot[sorted[0].id];
+  const card=(k,v,s)=>'<div class="statcard"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="s">'+s+'</div></div>';
+  const cards='<div class="statgrid">'
+    +card('领先优势','+'+lead,esc(sorted[0].name)+' 居首 +'+tot[sorted[0].id])
+    +card('局数',N+' 局',players.length+' 人参战')
+    +card('单局最高',(best.v>0?'+':'')+best.v,esc(best.n)+' · 第'+(best.k+1)+'局')
+    +card('单局最低',worst.v,esc(worst.n)+' · 第'+(worst.k+1)+'局')
+    +card('最稳',esc(calm.n),'每局波动 ±'+calm.s.toFixed(0))
+    +card('最浪',esc(wild.n),'每局波动 ±'+wild.s.toFixed(0))
+    +'</div>';
+  let tb='<div class="sttable"><div class="r head"><span class="rk">#</span><span class="nm">玩家</span><span class="col">总分</span><span class="col">最佳</span><span class="col">最差</span></div>';
+  sorted.forEach((p,idx)=>{const pi=players.indexOf(p),a=per[p.id],bb=a.length?Math.max(...a):0,ww=a.length?Math.min(...a):0,v=tot[p.id];
+    tb+='<div class="r"><span class="rk">'+(idx+1)+'</span><span class="nm"><span class="sw" style="background:'+PAL[pi%PAL.length]+'"></span>'+esc(p.name)+'</span>'
+      +'<span class="col" style="font-weight:700;color:'+(v>0?'var(--accent)':v<0?'var(--brick)':'var(--faint)')+'">'+(v>0?'+':'')+v+'</span>'
+      +'<span class="col" style="color:var(--accent)">'+(bb>0?'+':'')+bb+'</span>'
+      +'<span class="col" style="color:var(--brick)">'+ww+'</span></div>';
+  });
+  tb+='</div>';
+  box.innerHTML='<div class="chartbox">'+svg+leg+'<div class="note" style="margin-top:8px">纵轴 = 累计总分，横轴 = 第几局。点下面名字可单独看某人。</div></div>'+cards+'<div class="label" style="margin-top:14px">每人战绩</div>'+tb;
+  box.querySelectorAll('.lgi').forEach(e=>e.onclick=()=>{const id=e.dataset.pid;statFocus=statFocus===id?null:id;renderStats();});
+}
+
+/* ---- new round ---- */
+let draft=null;
+function openNew(){
+  if(state.players.length<2){alert("至少需要 2 个玩家");return;}
+  draft={winnerId:null,dealBomb:0,losers:{}};
+  state.players.forEach(p=>draft.losers[p.id]={cards:1,twos:0,bombs:0,allHeld:false});
+  renderDealBomb();renderWinnerChips();renderLosers();updateWinSum();show("#mNew");
+}
+function renderWinnerChips(){
+  const box=$("#winnerChips");box.innerHTML="";
+  state.players.forEach(p=>{
+    const c=el("div","chip"+(draft.winnerId===p.id?" on":""));c.textContent=p.name;
+    c.onclick=()=>{draft.winnerId=p.id;renderWinnerChips();renderLosers();updateWinSum();};
+    box.appendChild(c);
+  });
+}
+function stepper(label,val,min,max,onCh){
+  const w=el("div","stepper");
+  const sl=el("div","sl");sl.textContent=label;
+  const ctrl=el("div","ctrl");
+  const minus=el("button");minus.textContent="−";
+  const v=el("div","v num");v.textContent=val;
+  const plus=el("button");plus.textContent="+";
+  const upd=()=>{minus.disabled=val<=min;plus.disabled=val>=max;v.textContent=val;};
+  minus.onclick=()=>{if(val>min){val--;upd();onCh(val);}};
+  plus.onclick=()=>{if(val<max){val++;upd();onCh(val);}};
+  upd();ctrl.append(minus,v,plus);w.append(sl,ctrl);return w;
+}
+function renderLosers(){
+  const area=$("#loserArea");area.innerHTML="";
+  if(!draft.winnerId){const d=el("div","note");d.style.margin="16px 2px";d.textContent="先选出赢家，再录入其余玩家的剩牌。";area.appendChild(d);return;}
+  const lbl=el("div","label");lbl.textContent="输家剩牌（赢家自动跳过）";area.appendChild(lbl);
+  state.players.forEach(p=>{
+    if(p.id===draft.winnerId)return;
+    const L=draft.losers[p.id],card=el("div","lcard");
+    const top=el("div","top"),nm=el("div","lnm");nm.textContent=p.name;
+    const lsc=el("div","lsc num");top.append(nm,lsc);card.appendChild(top);
+    const calc=el("div","calc");card.appendChild(calc);
+    const grid=el("div","stepgrid");
+    grid.appendChild(stepper("剩牌",L.cards,0,6,v=>{L.cards=v;refresh();}));
+    grid.appendChild(stepper("2 的个数",L.twos,0,4,v=>{L.twos=v;refresh();}));
+    grid.appendChild(stepper("炸弹个数",L.bombs,0,2,v=>{L.bombs=v;refresh();}));
+    const hint=el("div","heldhint");hint.innerHTML='<span>满手关到底 ×2</span>';
+    grid.appendChild(hint);card.appendChild(grid);area.appendChild(card);
+    function refresh(){hint.classList.toggle("on",held(L));lsc.textContent="−"+scoreOf(L,draft.dealBomb);calc.textContent=calcText(L,draft.dealBomb);updateWinSum();}
+    refresh();
+  });
+}
+function updateWinSum(){
+  if(!draft.winnerId){$("#winSum").textContent="";return;}
+  let sum=0;state.players.forEach(p=>{if(p.id!==draft.winnerId)sum+=scoreOf(draft.losers[p.id],draft.dealBomb);});
+  $("#winSum").textContent=nameOf(draft.winnerId)+" 赢得 +"+sum;
+}
+function renderDealBomb(){const v=draft.dealBomb||0;$("#dbVal").textContent=v;$("#dbMinus").disabled=v<=0;$("#dbPlus").disabled=v>=6;}
+$("#dbMinus").onclick=()=>{if((draft.dealBomb||0)>0){draft.dealBomb--;renderDealBomb();renderLosers();updateWinSum();}};
+$("#dbPlus").onclick=()=>{if((draft.dealBomb||0)<6){draft.dealBomb=(draft.dealBomb||0)+1;renderDealBomb();renderLosers();updateWinSum();}};
+$("#btnNew").onclick=openNew;
+$("#newCancel").onclick=()=>hide("#mNew");
+$("#newSave").onclick=()=>{
+  if(!draft.winnerId){alert("请先选择赢家");return;}
+  const losers={};state.players.forEach(p=>{if(p.id!==draft.winnerId)losers[p.id]={...draft.losers[p.id]};});
+  state.rounds.push({winnerId:draft.winnerId,dealBomb:draft.dealBomb,losers});
+  save();renderAll();hide("#mNew");
+};
+
+/* ---- history ---- */
+function openHist(){
+  const box=$("#histList");box.innerHTML="";
+  if(!state.rounds.length){box.innerHTML='<div class="empty">还没有记录</div>';show("#mHist");return;}
+  [...state.rounds].reverse().forEach((r,ri)=>{
+    const idx=state.rounds.length-ri,row=el("div","hrow"),hh=el("div","hh");
+    const hidx=el("div","hidx");
+    const win=el("div","win");
+    const del=el("button","del");del.innerHTML=TRASH;del.setAttribute("aria-label","删除");
+    del.onclick=()=>{state.rounds.splice(state.rounds.length-1-ri,1);save();renderAll();openHist();};
+    const hd=el("div","hd");
+    if(r.deltas){
+      hidx.textContent="第 "+idx+" 局";
+      let tId=null,tV=-Infinity;for(const id in r.deltas)if(r.deltas[id]>tV){tV=r.deltas[id];tId=id;}
+      win.textContent=(r.note||"导入")+(tId?" · "+nameOf(tId)+" +"+tV:"");
+      Object.keys(r.deltas).forEach(id=>{
+        const v=r.deltas[id],pill=el("div","pill");
+        pill.innerHTML=esc(nameOf(id))+'<b class="'+(v>=0?"up":"")+'">'+(v>=0?"+":"")+v+'</b>';
+        hd.appendChild(pill);
+      });
+    }else{
+      hidx.textContent="第 "+idx+" 局"+(r.dealBomb?" · 场上炸弹 ×"+r.dealBomb:"");
+      win.textContent=nameOf(r.winnerId)+" 赢 +"+roundSum(r);
+      Object.keys(r.losers).forEach(id=>{
+        const l=r.losers[id],pill=el("div","pill");
+        let extra="";if(l.twos)extra+=" "+l.twos+"个2";if(l.bombs)extra+=" "+l.bombs+"炸";if(held(l))extra+=" 关";
+        pill.innerHTML=esc(nameOf(id))+" 剩"+l.cards+extra+"<b>−"+scoreOf(l,r.dealBomb)+"</b>";
+        hd.appendChild(pill);
+      });
+    }
+    hh.append(hidx,win,del);row.appendChild(hh);row.appendChild(hd);box.appendChild(row);
+  });
+  show("#mHist");
+}
+$("#btnHist").onclick=openHist;
+$("#histClose").onclick=()=>hide("#mHist");
+
+/* ---- players ---- */
+function openPlayers(){
+  const box=$("#playerEdit");box.innerHTML="";
+  state.players.forEach((p,i)=>{
+    const row=el("div","prow-edit"),inp=el("input");
+    inp.value=p.name;inp.placeholder="玩家"+(i+1);
+    inp.oninput=()=>{p.name=inp.value.trim()||("玩家"+(i+1));save();renderBoard();};
+    const rm=el("button","rm");rm.innerHTML=XMARK;rm.setAttribute("aria-label","删除玩家");
+    rm.onclick=()=>{
+      if(state.players.length<=2){alert("至少保留 2 个玩家");return;}
+      if(state.rounds.some(r=>r.winnerId===p.id||(r.losers&&r.losers[p.id])||(r.deltas&&p.id in r.deltas))&&!confirm("该玩家有历史记录，仍要删除吗？历史里会显示为“已删”。"))return;
+      state.players=state.players.filter(x=>x.id!==p.id);save();renderBoard();openPlayers();
+    };
+    row.append(inp,rm);box.appendChild(row);
+  });
+  $("#addPlayer").classList.toggle("hidden",state.players.length>=12);
+  show("#mPlayers");
+}
+$("#btnPlayers").onclick=openPlayers;
+$("#addPlayer").onclick=()=>{
+  if(state.players.length>=12)return;
+  state.players.push({id:pid(),name:"玩家"+(state.players.length+1)});save();renderBoard();openPlayers();
+};
+$("#playersClose").onclick=()=>hide("#mPlayers");
+
+/* ---- menu ---- */
+$("#btnMenu").onclick=()=>show("#mMenu");
+$("#menuClose").onclick=()=>hide("#mMenu");
+$("#btnStats").onclick=()=>{statFocus=null;renderStats();show("#mStats");};
+$("#statsClose").onclick=()=>hide("#mStats");
+$("#undoLast").onclick=()=>{if(!state.rounds.length){alert("没有可撤销的局");return;}state.rounds.pop();save();renderAll();hide("#mMenu");};
+$("#newGame").onclick=()=>{newSession();hide("#mMenu");};
+$("#sessionBar").onclick=()=>{renderSessions();show("#mSessions");};
+$("#newSessionBtn").onclick=()=>{newSession();hide("#mSessions");};
+$("#sessionsClose").onclick=()=>hide("#mSessions");
+
+let _toastH;
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("on");clearTimeout(_toastH);_toastH=setTimeout(()=>t.classList.remove("on"),1500);}
+$("#exportData").onclick=()=>{
+  const d=new Blob([JSON.stringify(db,null,2)],{type:"application/json"});
+  const a=el("a");a.href=URL.createObjectURL(d);a.download="干瞪眼记分-备份.json";
+  document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(a.href);
+  hide("#mMenu");toast("已导出备份");
+};
+$("#importData").onclick=()=>{
+  const inp=el("input");inp.type="file";inp.accept="application/json,.json";
+  inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=()=>{try{
+      const o=JSON.parse(r.result);
+      if(!o||(!Array.isArray(o.sessions)&&!Array.isArray(o.players)))throw 0;
+      if(!confirm("导入将覆盖当前全部数据，继续？"))return;
+      db=migrate(o);state=cur();save();renderAll();hide("#mMenu");toast("已导入");
+    }catch(e){alert("文件无法识别，请选择本应用导出的备份。");}};
+    r.readAsText(f);};
+  inp.click();
+};
+
+function show(id){$(id).classList.add("on");}
+function hide(id){$(id).classList.remove("on");}
+document.querySelectorAll(".mask").forEach(m=>m.addEventListener("click",e=>{if(e.target===m)m.classList.remove("on");}));
+
+boot();
+</script>
+</body>
+</html>
