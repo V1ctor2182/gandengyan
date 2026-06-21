@@ -201,12 +201,16 @@
   .rulebox b{color:var(--ink)}
   .menu-item{margin-bottom:11px}
   .menu-item .btn{justify-content:flex-start;gap:12px}
+  .cinput{width:100%;border:1px solid var(--line);border-radius:var(--r-c);padding:12px 14px;font-size:13.5px;background:var(--surface);color:var(--ink);font-family:var(--mono)}
+  .cinput:focus{outline:none;border-color:var(--accent)}
+  .sqlbox{background:var(--ink);color:#d7e7dd;border-radius:var(--r-c);padding:13px;font-family:var(--mono);font-size:11px;line-height:1.55;white-space:pre-wrap;word-break:break-all;overflow-x:auto;margin:0}
   .toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translate(-50%,12px);
     background:var(--ink);color:var(--bg);font-size:14px;font-weight:600;padding:11px 20px;border-radius:999px;
     z-index:50;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;box-shadow:var(--shadow)}
   .toast.on{opacity:1;transform:translate(-50%,0)}
   .hidden{display:none!important}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="wrap">
@@ -285,6 +289,25 @@
   <button class="btn btn-ghost" id="sessionsClose" style="margin-top:14px">关闭</button>
 </div></div>
 
+<!-- Cloud -->
+<div class="mask" id="mCloud"><div class="sheet">
+  <div class="grip"></div><h3>云同步 · Supabase 共享表</h3>
+  <div id="cloudStatus" class="note" style="margin:0 2px 12px"></div>
+  <div class="label">Project URL</div>
+  <input class="cinput" id="cloudUrl" placeholder="https://xxxx.supabase.co" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <div class="label">anon public key</div>
+  <input class="cinput" id="cloudKey" placeholder="eyJhbGciOi..." autocapitalize="off" autocorrect="off" spellcheck="false">
+  <div class="btn-row" style="margin-top:12px">
+    <button class="btn btn-primary" id="cloudConnect">连接</button>
+    <button class="btn btn-ghost" id="cloudDisconnect">断开</button>
+  </div>
+  <button class="btn btn-ghost" id="cloudSeedBtn" style="margin-top:10px">上传本地数据到云端</button>
+  <div class="label" style="margin-top:16px">第一次用：在 Supabase 的 SQL Editor 里跑一次</div>
+  <pre class="sqlbox" id="cloudSql"></pre>
+  <div class="note" style="margin-top:8px">建好后到 Supabase「Table Editor」就能像表格一样看/改 <b>gdy_rounds</b>（每行一局，deltas 是各人加减分）。在这粘贴 Project URL 和 anon key（Settings → API）即可连上。</div>
+  <button class="btn btn-ghost" id="cloudClose" style="margin-top:14px">关闭</button>
+</div></div>
+
 <!-- Stats -->
 <div class="mask" id="mStats"><div class="sheet">
   <div class="grip"></div><h3>战绩 · 走势</h3>
@@ -311,6 +334,9 @@
   </button></div>
   <div class="menu-item"><button class="btn btn-ghost" id="newGame">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v12M6 12h12"/></svg>开新对局（保留玩家，旧局存档）
+  </button></div>
+  <div class="menu-item"><button class="btn btn-ghost" id="btnCloud">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1.3A3.5 3.5 0 0 1 18 18H7Z"/></svg>云同步（Supabase 共享表）
   </button></div>
   <div class="btn-row" style="margin-bottom:11px">
     <button class="btn btn-ghost" id="exportData">
@@ -366,10 +392,13 @@ let db=defaultDB();
 let state=db.sessions[0];
 function cur(){return db.sessions.find(s=>s.id===db.currentId)||db.sessions[0];}
 function save(){
+  if(cloud)return;                 // 云端模式下数据存在 Supabase，本地不再落盘
   try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){}
   if(window.indexedDB)dbSet("state",db).catch(()=>{});
 }
 async function boot(){
+  initCloud();
+  if(cloud){await loadCloud();subscribeCloud();return;}
   let s=null;
   if(window.indexedDB){try{s=await dbGet("state");}catch(e){}}
   if(!s){try{const ls=localStorage.getItem(KEY);if(ls)s=JSON.parse(ls);}catch(e){}}
@@ -377,8 +406,71 @@ async function boot(){
 }
 function renderAll(){renderBoard();renderSessionBar();if($("#mSessions").classList.contains("on"))renderSessions();}
 
+/* ---- 云同步（Supabase 共享表）---- */
+const CLOUD_KEY="gdy_cloud";
+let sb=null,cloud=false,_reloadT=null;
+function cloudCfg(){try{return JSON.parse(localStorage.getItem(CLOUD_KEY))||null;}catch(e){return null;}}
+function initCloud(){const c=cloudCfg();if(c&&c.url&&c.key&&window.supabase){try{sb=window.supabase.createClient(c.url,c.key);cloud=true;}catch(e){cloud=false;}}}
+async function loadCloud(){
+  try{
+    const [r1,r2]=await Promise.all([
+      sb.from("gdy_rounds").select("id,idx,deltas,created_at").order("idx",{ascending:true}).order("id",{ascending:true}),
+      sb.from("gdy_players").select("name,ord").order("ord",{ascending:true})
+    ]);
+    if(r1.error)throw r1.error;
+    const names=(r2.data||[]).map(p=>p.name),seen=new Set(names);
+    (r1.data||[]).forEach(r=>Object.keys(r.deltas||{}).forEach(n=>{if(!seen.has(n)){seen.add(n);names.push(n);}}));
+    const players=names.map(n=>({id:n,name:n}));
+    const rounds=(r1.data||[]).map(r=>({_id:r.id,deltas:r.deltas||{}}));
+    state={id:"cloud",name:"云端共享表",ts:Date.now(),players,rounds};
+    db={sessions:[state],currentId:"cloud",counter:1};
+    renderAll();
+    if($("#mStats").classList.contains("on"))renderStats();
+  }catch(e){console.warn(e);toast("云端读取失败，检查配置或建表 SQL");}
+}
+function subscribeCloud(){
+  sb.channel("gdy-rt")
+    .on("postgres_changes",{event:"*",schema:"public",table:"gdy_rounds"},reloadCloudSoon)
+    .on("postgres_changes",{event:"*",schema:"public",table:"gdy_players"},reloadCloudSoon)
+    .subscribe();
+}
+function reloadCloudSoon(){clearTimeout(_reloadT);_reloadT=setTimeout(loadCloud,250);}
+async function cloudInsertRound(deltas){
+  const {error}=await sb.from("gdy_rounds").insert({idx:(state.rounds.length||0)+1,deltas});
+  if(error){toast("写入失败");console.warn(error);}else{toast("已记录");loadCloud();}
+}
+async function cloudDeleteRound(id){const {error}=await sb.from("gdy_rounds").delete().eq("id",id);if(error){toast("删除失败");console.warn(error);}else loadCloud();}
+async function cloudAddPlayer(name){const {error}=await sb.from("gdy_players").upsert({name,ord:state.players.length},{onConflict:"name"});if(error){toast("添加失败");console.warn(error);}else loadCloud();}
+async function cloudSeed(){
+  if(!confirm("把本地这盘数据上传到云端共享表？会追加到现有云端数据后面。"))return;
+  let ld=null;try{const s=await dbGet("state");if(s)ld=JSON.parse(s);}catch(e){}
+  if(!ld){try{const ls=localStorage.getItem(KEY);if(ls)ld=JSON.parse(ls);}catch(e){}}
+  ld=migrate(ld);const sess=ld.sessions.find(s=>s.id===ld.currentId)||ld.sessions[0];
+  if(!sess||!sess.rounds.length){toast("本地没有可上传的数据");return;}
+  const nameById={};sess.players.forEach(p=>nameById[p.id]=p.name);
+  await sb.from("gdy_players").upsert(sess.players.map((p,i)=>({name:p.name,ord:i})),{onConflict:"name"});
+  const base=state.rounds.length;
+  const rows=sess.rounds.map((r,k)=>{const d=roundDeltas(r,sess),dn={};for(const id in d)dn[nameById[id]||id]=d[id];return {idx:base+k+1,deltas:dn};});
+  const {error}=await sb.from("gdy_rounds").insert(rows);
+  if(error){toast("上传失败");console.warn(error);}else{toast("已上传 "+rows.length+" 局");loadCloud();}
+}
+const CLOUD_SQL=`-- 在 Supabase → SQL Editor 跑一次
+create table if not exists gdy_rounds(
+  id bigint generated always as identity primary key,
+  idx int, deltas jsonb not null,
+  created_at timestamptz not null default now());
+create table if not exists gdy_players(
+  name text primary key, ord int not null default 0);
+alter table gdy_rounds enable row level security;
+alter table gdy_players enable row level security;
+create policy "all" on gdy_rounds for all using(true) with check(true);
+create policy "all" on gdy_players for all using(true) with check(true);
+alter publication supabase_realtime add table gdy_rounds;
+alter publication supabase_realtime add table gdy_players;`;
+
 /* ---- 对局（session）管理 ---- */
 function newSession(){
+  if(cloud){toast("云端为单一共享表，暂不分对局");return;}
   db.counter=(db.counter||0)+1;
   const players=state.players.map(p=>({id:pid(),name:p.name}));
   db.sessions.push({id:sid(),name:"对局 "+db.counter,ts:Date.now(),players,rounds:[]});
@@ -386,6 +478,7 @@ function newSession(){
 }
 function switchSession(id){db.currentId=id;state=cur();save();renderAll();}
 function deleteSession(id){
+  if(cloud){toast("云端为单一共享表");return;}
   db.sessions=db.sessions.filter(s=>s.id!==id);
   if(!db.sessions.length)db=defaultDB();
   else if(!db.sessions.find(s=>s.id===db.currentId))db.currentId=[...db.sessions].sort((a,b)=>b.ts-a.ts)[0].id;
@@ -594,6 +687,12 @@ $("#btnNew").onclick=openNew;
 $("#newCancel").onclick=()=>hide("#mNew");
 $("#newSave").onclick=()=>{
   if(!draft.winnerId){alert("请先选择赢家");return;}
+  if(cloud){
+    const d={};let sum=0;
+    state.players.forEach(p=>{if(p.id===draft.winnerId)return;const sc=scoreOf(draft.losers[p.id],draft.dealBomb);d[p.id]=-sc;sum+=sc;});
+    d[draft.winnerId]=(d[draft.winnerId]||0)+sum;
+    hide("#mNew");cloudInsertRound(d);return;
+  }
   const losers={};state.players.forEach(p=>{if(p.id!==draft.winnerId)losers[p.id]={...draft.losers[p.id]};});
   state.rounds.push({winnerId:draft.winnerId,dealBomb:draft.dealBomb,losers});
   save();renderAll();hide("#mNew");
@@ -608,7 +707,7 @@ function openHist(){
     const hidx=el("div","hidx");
     const win=el("div","win");
     const del=el("button","del");del.innerHTML=TRASH;del.setAttribute("aria-label","删除");
-    del.onclick=()=>{state.rounds.splice(state.rounds.length-1-ri,1);save();renderAll();openHist();};
+    del.onclick=()=>{if(cloud){if(r._id!=null)cloudDeleteRound(r._id);hide("#mHist");return;}state.rounds.splice(state.rounds.length-1-ri,1);save();renderAll();openHist();};
     const hd=el("div","hd");
     if(r.deltas){
       hidx.textContent="第 "+idx+" 局";
@@ -642,9 +741,11 @@ function openPlayers(){
   state.players.forEach((p,i)=>{
     const row=el("div","prow-edit"),inp=el("input");
     inp.value=p.name;inp.placeholder="玩家"+(i+1);
-    inp.oninput=()=>{p.name=inp.value.trim()||("玩家"+(i+1));save();renderBoard();};
+    if(cloud)inp.readOnly=true;
+    inp.oninput=()=>{if(cloud)return;p.name=inp.value.trim()||("玩家"+(i+1));save();renderBoard();};
     const rm=el("button","rm");rm.innerHTML=XMARK;rm.setAttribute("aria-label","删除玩家");
     rm.onclick=()=>{
+      if(cloud){toast("云端改名/删除请在 Supabase 表里改");return;}
       if(state.players.length<=2){alert("至少保留 2 个玩家");return;}
       if(state.rounds.some(r=>r.winnerId===p.id||(r.losers&&r.losers[p.id])||(r.deltas&&p.id in r.deltas))&&!confirm("该玩家有历史记录，仍要删除吗？历史里会显示为“已删”。"))return;
       state.players=state.players.filter(x=>x.id!==p.id);save();renderBoard();openPlayers();
@@ -656,6 +757,7 @@ function openPlayers(){
 }
 $("#btnPlayers").onclick=openPlayers;
 $("#addPlayer").onclick=()=>{
+  if(cloud){const nm=prompt("新玩家名字");if(nm&&nm.trim()){cloudAddPlayer(nm.trim());hide("#mPlayers");}return;}
   if(state.players.length>=12)return;
   state.players.push({id:pid(),name:"玩家"+(state.players.length+1)});save();renderBoard();openPlayers();
 };
@@ -666,8 +768,21 @@ $("#btnMenu").onclick=()=>show("#mMenu");
 $("#menuClose").onclick=()=>hide("#mMenu");
 $("#btnStats").onclick=()=>{statFocus=null;renderStats();show("#mStats");};
 $("#statsClose").onclick=()=>hide("#mStats");
-$("#undoLast").onclick=()=>{if(!state.rounds.length){alert("没有可撤销的局");return;}state.rounds.pop();save();renderAll();hide("#mMenu");};
-$("#newGame").onclick=()=>{newSession();hide("#mMenu");};
+
+function openCloud(){
+  const c=cloudCfg()||{};
+  $("#cloudUrl").value=c.url||"";$("#cloudKey").value=c.key||"";
+  $("#cloudStatus").textContent=cloud?"状态：已连接，实时同步中":"状态：未连接 · 当前本地模式";
+  $("#cloudSql").textContent=CLOUD_SQL;
+  show("#mCloud");
+}
+$("#btnCloud").onclick=()=>{hide("#mMenu");openCloud();};
+$("#cloudClose").onclick=()=>hide("#mCloud");
+$("#cloudConnect").onclick=()=>{const url=$("#cloudUrl").value.trim(),key=$("#cloudKey").value.trim();if(!url||!key){alert("请填 Project URL 和 anon key");return;}localStorage.setItem(CLOUD_KEY,JSON.stringify({url,key}));toast("连接中…");location.reload();};
+$("#cloudDisconnect").onclick=()=>{if(!cloudCfg()){hide("#mCloud");return;}if(!confirm("断开云端、回到本地模式？本地数据不受影响。"))return;localStorage.removeItem(CLOUD_KEY);location.reload();};
+$("#cloudSeedBtn").onclick=()=>{if(!cloud){alert("请先连接云端再上传");return;}cloudSeed();};
+$("#undoLast").onclick=()=>{if(!state.rounds.length){alert("没有可撤销的局");return;}if(cloud){const last=state.rounds[state.rounds.length-1];if(last&&last._id!=null)cloudDeleteRound(last._id);hide("#mMenu");return;}state.rounds.pop();save();renderAll();hide("#mMenu");};
+$("#newGame").onclick=()=>{if(cloud){toast("云端为单一共享表，暂不分对局");hide("#mMenu");return;}newSession();hide("#mMenu");};
 $("#sessionBar").onclick=()=>{renderSessions();show("#mSessions");};
 $("#newSessionBtn").onclick=()=>{newSession();hide("#mSessions");};
 $("#sessionsClose").onclick=()=>hide("#mSessions");

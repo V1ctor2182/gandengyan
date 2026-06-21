@@ -1,7 +1,0 @@
-{
-  "name": "gandengyan-server",
-  "private": true,
-  "type": "module",
-  "description": "腾讯文档作为干瞪眼记分数据库的后端代理（OAuth + 读写转发）",
-  "engines": { "node": ">=18" }
-}
