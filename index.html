@@ -52,9 +52,9 @@
   .brand .mk{width:30px;height:30px;color:var(--accent);flex:none}
   .brand h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.02em}
   .brand .sub{font-size:11px;color:var(--faint);margin-top:2px;letter-spacing:.18em;text-transform:uppercase}
-  .hbtns{display:flex;gap:6px}
-  .icon-btn{background:none;border:none;color:var(--muted);width:40px;height:40px;border-radius:var(--r-c);display:grid;place-items:center;cursor:pointer;transition:background .15s,color .15s}
-  .icon-btn svg{width:21px;height:21px}
+  .hbtns{display:flex;gap:3px}
+  .icon-btn{background:none;border:none;color:var(--muted);width:38px;height:38px;border-radius:var(--r-c);display:grid;place-items:center;cursor:pointer;transition:background .15s,color .15s}
+  .icon-btn svg{width:20px;height:20px}
   .icon-btn:hover{color:var(--ink);background:var(--surface)}
   .icon-btn:active{transform:scale(.92)}
 
@@ -116,6 +116,21 @@
   .sttable .nm{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sttable .nm .sw{margin-right:7px;vertical-align:middle}
   .sttable .col{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;font-size:13.5px}
+
+  /* 表格录入 grid */
+  .gridwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line-2);border-radius:var(--r-c);background:var(--surface)}
+  .gtable{border-collapse:collapse;width:max-content;min-width:100%}
+  .gtable th,.gtable td{border:1px solid var(--line-2);text-align:center;font-variant-numeric:tabular-nums}
+  .gtable th{background:var(--bg);font-size:12.5px;font-weight:700;padding:9px 6px;white-space:nowrap;position:sticky;top:0;z-index:2}
+  .gtable th.idx,.gtable td.idx{position:sticky;left:0;background:var(--bg);font-size:11px;color:var(--faint);min-width:34px;z-index:1;font-weight:700}
+  .gtable th.idx{z-index:3}
+  .gcell{padding:0}
+  .gcell input{width:50px;border:none;background:transparent;text-align:center;font-size:14px;padding:10px 2px;color:var(--ink);font-family:var(--mono);-moz-appearance:textfield}
+  .gcell input:focus{outline:2px solid var(--accent);outline-offset:-2px;background:var(--accent-wash)}
+  .gsub{font-family:var(--mono);font-size:13px;color:var(--faint);padding:0 10px;min-width:46px;background:var(--bg)}
+  .gsub.bad{color:var(--brick);font-weight:700}
+  .gtot td{background:var(--bg);font-weight:700;font-family:var(--mono);padding:10px 5px;font-size:13px}
+  .gtot td.pos{color:var(--accent)}.gtot td.neg{color:var(--brick)}
 
   /* ---- buttons ---- */
   .btn{border:none;border-radius:var(--r-c);font-family:inherit;font-size:16px;font-weight:600;padding:15px;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:9px;transition:transform .08s,filter .15s}
@@ -223,6 +238,9 @@
       </div>
     </div>
     <div class="hbtns">
+      <button class="icon-btn" id="btnGrid" aria-label="表格录入">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M3.5 9.5h17M3.5 14.5h17M9 4.5v15M15 4.5v15"/></svg>
+      </button>
       <button class="icon-btn" id="btnStats" aria-label="战绩走势">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v15.5a.5.5 0 0 0 .5.5H20"/><path d="M7.5 14.5 11 10l3 2.5 4-5.5"/></svg>
       </button>
@@ -287,6 +305,17 @@
   <div id="sessionList"></div>
   <div class="note" style="margin:8px 2px 0">点对局可切换查看；开新对局会沿用当前玩家，旧对局自动存档保留。</div>
   <button class="btn btn-ghost" id="sessionsClose" style="margin-top:14px">关闭</button>
+</div></div>
+
+<!-- Grid 表格录入 -->
+<div class="mask" id="mGrid"><div class="sheet">
+  <div class="grip"></div><h3>表格录入</h3>
+  <div id="gridBody"></div>
+  <div class="btn-row" style="margin-top:12px">
+    <button class="btn btn-primary" id="gridAdd">＋ 加一局</button>
+    <button class="btn btn-ghost" id="gridCloseBtn">关闭</button>
+  </div>
+  <div class="note" style="margin-top:8px">点单元格直接改分；「小计」应为 0，变红说明这一局没配平。改动即时保存（云端模式写回 Supabase）。</div>
 </div></div>
 
 <!-- Cloud -->
@@ -426,6 +455,7 @@ async function loadCloud(){
     db={sessions:[state],currentId:"cloud",counter:1};
     renderAll();
     if($("#mStats").classList.contains("on"))renderStats();
+    if($("#mGrid").classList.contains("on"))renderGrid();
   }catch(e){console.warn(e);toast("云端读取失败，检查配置或建表 SQL");}
 }
 function subscribeCloud(){
@@ -626,6 +656,51 @@ function renderStats(){
   box.innerHTML='<div class="chartbox">'+svg+leg+'<div class="note" style="margin-top:8px">纵轴 = 累计总分，横轴 = 第几局。点下面名字可单独看某人。</div></div>'+cards+'<div class="label" style="margin-top:14px">每人战绩</div>'+tb;
   box.querySelectorAll('.lgi').forEach(e=>e.onclick=()=>{const id=e.dataset.pid;statFocus=statFocus===id?null:id;renderStats();});
 }
+
+/* ---- 表格录入 grid ---- */
+function rowSum(r){const d=r.deltas?r.deltas:roundDeltas(r,state);let s=0;state.players.forEach(p=>s+=(d[p.id]||0));return s;}
+function renderGrid(){
+  const box=$("#gridBody"),players=state.players;
+  if(!players.length){box.innerHTML='<div class="empty">先在「玩家」里添加玩家，再用表格录入。</div>';return;}
+  let h='<div class="gridwrap"><table class="gtable"><thead><tr><th class="idx">局</th>';
+  players.forEach(p=>h+='<th>'+esc(p.name)+'</th>');
+  h+='<th>小计</th></tr></thead><tbody>';
+  state.rounds.forEach((r,i)=>{
+    const d=r.deltas?r.deltas:roundDeltas(r,state);
+    h+='<tr><td class="idx">'+(i+1)+'</td>';
+    players.forEach((p,j)=>{h+='<td class="gcell"><input inputmode="numeric" pattern="-?[0-9]*" data-i="'+i+'" data-p="'+j+'" value="'+(d[p.id]||0)+'"></td>';});
+    const s=rowSum(r);h+='<td class="gsub'+(s!==0?' bad':'')+'" id="gsub-'+i+'">'+s+'</td></tr>';
+  });
+  h+='</tbody><tfoot><tr class="gtot"><td class="idx">累计</td>';
+  const t=totals(state);
+  players.forEach((p,j)=>{const v=t[p.id];h+='<td id="gtot-'+j+'" class="'+(v>0?'pos':v<0?'neg':'')+'">'+(v>0?'+':'')+v+'</td>';});
+  h+='<td></td></tr></tfoot></table></div>';
+  box.innerHTML=h;
+  box.querySelectorAll('.gcell input').forEach(inp=>{
+    inp.onchange=()=>gridSet(+inp.dataset.i,players[+inp.dataset.p].id,inp.value);
+  });
+}
+function gridSet(i,pid,raw){
+  const v=parseInt(raw,10)||0;
+  let r=state.rounds[i];if(!r)return;
+  if(!r.deltas)r=state.rounds[i]={deltas:roundDeltas(r,state),_id:r._id};
+  r.deltas[pid]=v;
+  if(cloud){if(r._id!=null)sb.from("gdy_rounds").update({deltas:r.deltas}).eq("id",r._id).then(({error})=>{if(error){toast("保存失败");console.warn(error);}});}
+  else save();
+  const sub=document.getElementById("gsub-"+i);if(sub){const s=rowSum(r);sub.textContent=s;sub.className="gsub"+(s!==0?" bad":"");}
+  const t=totals(state);
+  state.players.forEach((p,j)=>{const c=document.getElementById("gtot-"+j);if(c){const tv=t[p.id];c.textContent=(tv>0?"+":"")+tv;c.className=(tv>0?"pos":tv<0?"neg":"");}});
+  renderBoard();
+}
+function gridAddRow(){
+  if(!state.players.length){toast("先添加玩家");return;}
+  const d={};state.players.forEach(p=>d[p.id]=0);
+  if(cloud){sb.from("gdy_rounds").insert({idx:state.rounds.length+1,deltas:d}).then(({error})=>{if(error){toast("添加失败");console.warn(error);}else loadCloud();});return;}
+  state.rounds.push({deltas:d});save();renderGrid();renderBoard();
+}
+$("#btnGrid").onclick=()=>{renderGrid();show("#mGrid");};
+$("#gridCloseBtn").onclick=()=>hide("#mGrid");
+$("#gridAdd").onclick=gridAddRow;
 
 /* ---- new round ---- */
 let draft=null;
