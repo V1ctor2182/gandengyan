@@ -217,6 +217,9 @@
   .menu-item .btn{justify-content:flex-start;gap:12px}
   .cinput{width:100%;border:1px solid var(--line);border-radius:var(--r-c);padding:12px 14px;font-size:13.5px;background:var(--surface);color:var(--ink);font-family:var(--mono)}
   .cinput:focus{outline:none;border-color:var(--accent)}
+  .codebig{font-family:var(--mono);font-size:32px;font-weight:700;letter-spacing:.2em;text-align:center;color:var(--accent);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-s);padding:18px;margin-bottom:12px}
+  .joinrow{display:flex;gap:10px}
+  .joinrow .cinput{flex:1;text-transform:uppercase}
   .sqlbox{background:var(--ink);color:#d7e7dd;border-radius:var(--r-c);padding:13px;font-family:var(--mono);font-size:11px;line-height:1.55;white-space:pre-wrap;word-break:break-all;overflow-x:auto;margin:0}
   .toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translate(-50%,12px);
     background:var(--ink);color:var(--bg);font-size:14px;font-weight:600;padding:11px 20px;border-radius:999px;
@@ -304,6 +307,24 @@
   <div id="sessionList"></div>
   <div class="note" style="margin:8px 2px 0">点对局可切换查看；开新对局会沿用当前玩家，旧对局自动存档保留。</div>
   <button class="btn btn-ghost" id="sessionsClose" style="margin-top:14px">关闭</button>
+</div></div>
+
+<!-- Room 本场 -->
+<div class="mask" id="mRoom"><div class="sheet">
+  <div class="grip"></div><h3>本场</h3>
+  <div class="codebig" id="roomCode"></div>
+  <div class="btn-row">
+    <button class="btn btn-primary" id="roomShare">分享链接</button>
+    <button class="btn btn-ghost" id="roomCopy">复制链接</button>
+  </div>
+  <button class="btn btn-ghost" id="roomNew" style="margin-top:10px">新开一场</button>
+  <div class="label">加入别的场</div>
+  <div class="joinrow">
+    <input class="cinput" id="roomJoin" placeholder="输入 5 位场号" maxlength="5" autocapitalize="characters" autocorrect="off" spellcheck="false">
+    <button class="btn btn-primary" id="roomJoinBtn" style="width:auto;padding:13px 18px">加入</button>
+  </div>
+  <div class="note" style="margin-top:10px">把链接发给牌友，打开就是这一场、实时同步。不同的场 = 不同链接，互不相见。</div>
+  <button class="btn btn-ghost" id="roomClose" style="margin-top:14px">关闭</button>
 </div></div>
 
 <!-- Grid 表格录入 -->
@@ -434,23 +455,31 @@ async function boot(){
 }
 function renderAll(){renderBoard();renderSessionBar();if($("#mSessions").classList.contains("on"))renderSessions();}
 
-/* ---- 云同步（Supabase 共享表）---- */
+/* ---- 云同步：Supabase 共享表，一个链接一场（room）---- */
 const CLOUD_KEY="gdy_cloud";
-let sb=null,cloud=false,_reloadT=null;
-function cloudCfg(){try{return JSON.parse(localStorage.getItem(CLOUD_KEY))||null;}catch(e){return null;}}
-function initCloud(){const c=cloudCfg();if(c&&c.url&&c.key&&window.supabase){try{sb=window.supabase.createClient(c.url,c.key);cloud=true;}catch(e){cloud=false;}}}
+const CLOUD_BAKED={url:"",key:""};   // 部署时填这两个 → 所有访客自动连同一 Supabase，开链接即用
+let sb=null,cloud=false,room=null,_reloadT=null;
+function cloudCfg(){if(CLOUD_BAKED.url&&CLOUD_BAKED.key)return CLOUD_BAKED;try{return JSON.parse(localStorage.getItem(CLOUD_KEY))||null;}catch(e){return null;}}
+function genRoom(){const a="ABCDEFGHJKLMNPQRSTUVWXYZ23456789",x=crypto.getRandomValues(new Uint32Array(5));let s="";for(let i=0;i<5;i++)s+=a[x[i]%a.length];return s;}
+function resolveRoom(){
+  const u=new URL(location.href);
+  room=(u.searchParams.get("g")||localStorage.getItem("gdy_room")||genRoom()).toUpperCase();
+  localStorage.setItem("gdy_room",room);
+  u.searchParams.set("g",room);history.replaceState(null,"",u);
+}
+function initCloud(){const c=cloudCfg();if(c&&c.url&&c.key&&window.supabase){try{sb=window.supabase.createClient(c.url,c.key);cloud=true;resolveRoom();}catch(e){cloud=false;}}}
 async function loadCloud(){
   try{
     const [r1,r2]=await Promise.all([
-      sb.from("gdy_rounds").select("id,idx,deltas,created_at").order("idx",{ascending:true}).order("id",{ascending:true}),
-      sb.from("gdy_players").select("name,ord").order("ord",{ascending:true})
+      sb.from("gdy_rounds").select("id,idx,deltas").eq("room",room).order("idx",{ascending:true}).order("id",{ascending:true}),
+      sb.from("gdy_players").select("name,ord").eq("room",room).order("ord",{ascending:true})
     ]);
     if(r1.error)throw r1.error;
     const names=(r2.data||[]).map(p=>p.name),seen=new Set(names);
     (r1.data||[]).forEach(r=>Object.keys(r.deltas||{}).forEach(n=>{if(!seen.has(n)){seen.add(n);names.push(n);}}));
     const players=names.map(n=>({id:n,name:n}));
     const rounds=(r1.data||[]).map(r=>({_id:r.id,deltas:r.deltas||{}}));
-    state={id:"cloud",name:"云端共享表",ts:Date.now(),players,rounds};
+    state={id:"cloud",name:"本场 "+room,ts:Date.now(),players,rounds};
     db={sessions:[state],currentId:"cloud",counter:1};
     renderAll();
     if($("#mStats").classList.contains("on"))renderStats();
@@ -458,38 +487,45 @@ async function loadCloud(){
   }catch(e){console.warn(e);toast("云端读取失败，检查配置或建表 SQL");}
 }
 function subscribeCloud(){
-  sb.channel("gdy-rt")
-    .on("postgres_changes",{event:"*",schema:"public",table:"gdy_rounds"},reloadCloudSoon)
-    .on("postgres_changes",{event:"*",schema:"public",table:"gdy_players"},reloadCloudSoon)
+  sb.channel("gdy-"+room)
+    .on("postgres_changes",{event:"*",schema:"public",table:"gdy_rounds",filter:"room=eq."+room},reloadCloudSoon)
+    .on("postgres_changes",{event:"*",schema:"public",table:"gdy_players",filter:"room=eq."+room},reloadCloudSoon)
     .subscribe();
 }
 function reloadCloudSoon(){clearTimeout(_reloadT);_reloadT=setTimeout(loadCloud,250);}
 async function cloudInsertRound(deltas){
-  const {error}=await sb.from("gdy_rounds").insert({idx:(state.rounds.length||0)+1,deltas});
+  const {error}=await sb.from("gdy_rounds").insert({room,idx:(state.rounds.length||0)+1,deltas});
   if(error){toast("写入失败");console.warn(error);}else{toast("已记录");loadCloud();}
 }
 async function cloudDeleteRound(id){const {error}=await sb.from("gdy_rounds").delete().eq("id",id);if(error){toast("删除失败");console.warn(error);}else loadCloud();}
-async function cloudAddPlayer(name){const {error}=await sb.from("gdy_players").upsert({name,ord:state.players.length},{onConflict:"name"});if(error){toast("添加失败");console.warn(error);}else loadCloud();}
+async function cloudAddPlayer(name){const {error}=await sb.from("gdy_players").upsert({room,name,ord:state.players.length},{onConflict:"room,name"});if(error){toast("添加失败");console.warn(error);}else loadCloud();}
 async function cloudSeed(){
-  if(!confirm("把本地这盘数据上传到云端共享表？会追加到现有云端数据后面。"))return;
+  if(!confirm("把本地这盘数据上传到当前这一场（"+room+"）？会追加到末尾。"))return;
   let ld=null;try{const s=await dbGet("state");if(s)ld=JSON.parse(s);}catch(e){}
   if(!ld){try{const ls=localStorage.getItem(KEY);if(ls)ld=JSON.parse(ls);}catch(e){}}
   ld=migrate(ld);const sess=ld.sessions.find(s=>s.id===ld.currentId)||ld.sessions[0];
   if(!sess||!sess.rounds.length){toast("本地没有可上传的数据");return;}
   const nameById={};sess.players.forEach(p=>nameById[p.id]=p.name);
-  await sb.from("gdy_players").upsert(sess.players.map((p,i)=>({name:p.name,ord:i})),{onConflict:"name"});
+  await sb.from("gdy_players").upsert(sess.players.map((p,i)=>({room,name:p.name,ord:i})),{onConflict:"room,name"});
   const base=state.rounds.length;
-  const rows=sess.rounds.map((r,k)=>{const d=roundDeltas(r,sess),dn={};for(const id in d)dn[nameById[id]||id]=d[id];return {idx:base+k+1,deltas:dn};});
+  const rows=sess.rounds.map((r,k)=>{const d=roundDeltas(r,sess),dn={};for(const id in d)dn[nameById[id]||id]=d[id];return {room,idx:base+k+1,deltas:dn};});
   const {error}=await sb.from("gdy_rounds").insert(rows);
   if(error){toast("上传失败");console.warn(error);}else{toast("已上传 "+rows.length+" 局");loadCloud();}
 }
-const CLOUD_SQL=`-- 在 Supabase → SQL Editor 跑一次
+function roomLink(){const u=new URL(location.href);u.searchParams.set("g",room);return u.toString();}
+async function copyText(t){try{await navigator.clipboard.writeText(t);toast("链接已复制");}catch(e){prompt("复制链接：",t);}}
+function shareRoom(){const l=roomLink();if(navigator.share)navigator.share({title:"干瞪眼记分 · 本场 "+room,url:l}).catch(()=>{});else copyText(l);}
+function newRoom(){if(!confirm("新开一场？会生成新链接，当前这场不受影响。"))return;const u=new URL(location.href);u.searchParams.set("g",genRoom());localStorage.removeItem("gdy_room");location.href=u.toString();}
+function joinRoom(code){code=(code||"").trim().toUpperCase();if(!code)return;const u=new URL(location.href);u.searchParams.set("g",code);localStorage.removeItem("gdy_room");location.href=u.toString();}
+const CLOUD_SQL=`-- Supabase → SQL Editor 跑一次（一个链接一场）
 create table if not exists gdy_rounds(
   id bigint generated always as identity primary key,
-  idx int, deltas jsonb not null,
+  room text not null, idx int, deltas jsonb not null,
   created_at timestamptz not null default now());
 create table if not exists gdy_players(
-  name text primary key, ord int not null default 0);
+  room text not null, name text not null, ord int not null default 0,
+  primary key(room,name));
+create index if not exists gdy_rounds_room on gdy_rounds(room);
 alter table gdy_rounds enable row level security;
 alter table gdy_players enable row level security;
 create policy "all" on gdy_rounds for all using(true) with check(true);
@@ -515,6 +551,12 @@ function deleteSession(id){
 }
 function renderSessionBar(){
   const bar=$("#sessionBar"),n=state.rounds.length;
+  if(cloud){
+    bar.innerHTML='<span class="sicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1.3A3.5 3.5 0 0 1 18 18H7Z"/></svg></span>'
+      +'<div class="st"><div class="snm">本场 '+esc(room||"")+'</div><div class="smeta">'+n+' 局 · 点此分享 / 换场</div></div>'
+      +'<span class="chev">分享 ›</span>';
+    return;
+  }
   bar.innerHTML='<span class="sicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 7.5 12 12l9-4.5L12 3Z"/><path d="M3 12l9 4.5L21 12"/><path d="M3 16.5 12 21l9-4.5"/></svg></span>'
     +'<div class="st"><div class="snm">'+esc(state.name||"对局")+'</div><div class="smeta">'+(n?n+" 局 · ":"")+fmtDate(state.ts)+'</div></div>'
     +'<span class="chev">切换 ›</span>';
@@ -692,12 +734,19 @@ function gridSet(i,pid,raw){
 function gridAddRow(){
   if(!state.players.length){toast("先添加玩家");return;}
   const d={};state.players.forEach(p=>d[p.id]=0);
-  if(cloud){sb.from("gdy_rounds").insert({idx:state.rounds.length+1,deltas:d}).then(({error})=>{if(error){toast("添加失败");console.warn(error);}else loadCloud();});return;}
+  if(cloud){sb.from("gdy_rounds").insert({room,idx:state.rounds.length+1,deltas:d}).then(({error})=>{if(error){toast("添加失败");console.warn(error);}else loadCloud();});return;}
   state.rounds.push({deltas:d});save();renderGrid();renderBoard();
 }
 $("#btnGrid").onclick=()=>{renderGrid();show("#mGrid");};
 $("#gridCloseBtn").onclick=()=>hide("#mGrid");
 $("#gridAdd").onclick=gridAddRow;
+
+function openRoom(){$("#roomCode").textContent=room||"";$("#roomJoin").value="";show("#mRoom");}
+$("#roomShare").onclick=shareRoom;
+$("#roomCopy").onclick=()=>copyText(roomLink());
+$("#roomNew").onclick=newRoom;
+$("#roomJoinBtn").onclick=()=>joinRoom($("#roomJoin").value);
+$("#roomClose").onclick=()=>hide("#mRoom");
 
 /* ---- new round ---- */
 let draft=null;
@@ -836,7 +885,11 @@ $("#addPlayer").onclick=()=>{
 $("#playersClose").onclick=()=>hide("#mPlayers");
 
 /* ---- menu ---- */
-$("#btnMenu").onclick=()=>show("#mMenu");
+$("#btnMenu").onclick=()=>{
+  $("#newGame").parentElement.classList.toggle("hidden",cloud);                                   // 云端用顶部"新开一场"
+  $("#btnCloud").parentElement.classList.toggle("hidden",!!(CLOUD_BAKED.url&&CLOUD_BAKED.key));    // 已内置 Supabase 则不显示设置
+  show("#mMenu");
+};
 $("#menuClose").onclick=()=>hide("#mMenu");
 $("#btnStats").onclick=()=>{statFocus=null;renderStats();show("#mStats");};
 $("#statsClose").onclick=()=>hide("#mStats");
@@ -855,7 +908,7 @@ $("#cloudDisconnect").onclick=()=>{if(!cloudCfg()){hide("#mCloud");return;}if(!c
 $("#cloudSeedBtn").onclick=()=>{if(!cloud){alert("请先连接云端再上传");return;}cloudSeed();};
 $("#undoLast").onclick=()=>{if(!state.rounds.length){alert("没有可撤销的局");return;}if(cloud){const last=state.rounds[state.rounds.length-1];if(last&&last._id!=null)cloudDeleteRound(last._id);hide("#mMenu");return;}state.rounds.pop();save();renderAll();hide("#mMenu");};
 $("#newGame").onclick=()=>{if(cloud){toast("云端为单一共享表，暂不分对局");hide("#mMenu");return;}newSession();hide("#mMenu");};
-$("#sessionBar").onclick=()=>{renderSessions();show("#mSessions");};
+$("#sessionBar").onclick=()=>{if(cloud){openRoom();return;}renderSessions();show("#mSessions");};
 $("#newSessionBtn").onclick=()=>{newSession();hide("#mSessions");};
 $("#sessionsClose").onclick=()=>hide("#mSessions");
 

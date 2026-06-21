@@ -10,10 +10,12 @@
 ```sql
 create table if not exists gdy_rounds(
   id bigint generated always as identity primary key,
-  idx int, deltas jsonb not null,
+  room text not null, idx int, deltas jsonb not null,
   created_at timestamptz not null default now());
 create table if not exists gdy_players(
-  name text primary key, ord int not null default 0);
+  room text not null, name text not null, ord int not null default 0,
+  primary key(room,name));
+create index if not exists gdy_rounds_room on gdy_rounds(room);
 alter table gdy_rounds enable row level security;
 alter table gdy_players enable row level security;
 create policy "all" on gdy_rounds for all using(true) with check(true);
@@ -22,7 +24,11 @@ alter publication supabase_realtime add table gdy_rounds;
 alter publication supabase_realtime add table gdy_players;
 ```
 
-> 这两张表里 **gdy_rounds** 就是「局表」：每行一局，`deltas` 是这一局各人加减分（按名字），例如 `{"谢":-170,"刘":20}`。到 **Table Editor** 里能直接看、直接改。
+> **一个链接一场**：每条数据都带 `room`（场号，来自网址 `?g=场号`）。`gdy_rounds` 就是「局表」：每行一局，`deltas` 是各人加减分（按名字），例如 `{"谢":-170,"刘":20}`。到 **Table Editor** 里能直接看/改，用 `room` 列区分不同的场。
+
+## 部署后免配置（推荐）
+
+把 Project URL 和 anon key 填进 `index.html` 顶部脚本里的 `CLOUD_BAKED = {url:"", key:""}`，部署后**所有访客自动连上、开链接即用**，不用各自粘贴 key。顶部「本场 XXXXX」点开可分享链接 / 新开一场 / 加入别的场。
 
 ## 二、连接 App
 
