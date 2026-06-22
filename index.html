@@ -414,7 +414,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7 5 11l4 4"/><path d="M5 11h9a5 5 0 0 1 0 10"/></svg>撤销最近一局
   </button></div>
   <div class="menu-item"><button class="btn btn-ghost" id="btnCloud">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1.3A3.5 3.5 0 0 1 18 18H7Z"/></svg>云同步设置（Supabase）
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1.3A3.5 3.5 0 0 1 18 18H7Z"/></svg>云同步设置
   </button></div>
   <div class="rulebox note">
     <b>算分规则</b><br>
@@ -496,7 +496,7 @@ async function loadCloud(){
     renderAll();
     if($("#mStats").classList.contains("on"))renderStats();
     if($("#mGrid").classList.contains("on"))renderGrid();
-  }catch(e){console.warn(e);toast("云端读取失败，检查配置或建表 SQL");}
+  }catch(e){console.warn(e);toast("数据加载失败，请稍后重试");}
 }
 function subscribeCloud(){
   sb.channel("gdy-"+room)
@@ -862,7 +862,7 @@ function openPlayers(){
     inp.oninput=()=>{if(cloud)return;p.name=inp.value.trim()||("玩家"+(i+1));save();renderBoard();};
     const rm=el("button","rm");rm.innerHTML=XMARK;rm.setAttribute("aria-label","删除玩家");
     rm.onclick=()=>{
-      if(cloud){toast("云端改名/删除请在 Supabase 表里改");return;}
+      if(cloud){toast("联机对局暂不支持在这改名/删除玩家");return;}
       if(state.players.length<=2){alert("至少保留 2 个玩家");return;}
       if(state.rounds.some(r=>r.winnerId===p.id||(r.losers&&r.losers[p.id])||(r.deltas&&p.id in r.deltas))&&!confirm("该玩家有历史记录，仍要删除吗？历史里会显示为“已删”。"))return;
       state.players=state.players.filter(x=>x.id!==p.id);save();renderBoard();openPlayers();
