@@ -8,6 +8,8 @@
 2. 打开 **SQL Editor**，把下面这段跑一次：
 
 ```sql
+create table if not exists gdy_games(
+  room text primary key, name text, created_at timestamptz not null default now());
 create table if not exists gdy_rounds(
   id bigint generated always as identity primary key,
   room text not null, idx int, deltas jsonb not null,
@@ -16,8 +18,10 @@ create table if not exists gdy_players(
   room text not null, name text not null, ord int not null default 0,
   primary key(room,name));
 create index if not exists gdy_rounds_room on gdy_rounds(room);
+alter table gdy_games enable row level security;
 alter table gdy_rounds enable row level security;
 alter table gdy_players enable row level security;
+create policy "all" on gdy_games for all using(true) with check(true);
 create policy "all" on gdy_rounds for all using(true) with check(true);
 create policy "all" on gdy_players for all using(true) with check(true);
 alter publication supabase_realtime add table gdy_rounds;
