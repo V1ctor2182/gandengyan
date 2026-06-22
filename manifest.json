@@ -1,0 +1,15 @@
+{
+  "name": "干瞪眼记分",
+  "short_name": "干瞪眼",
+  "description": "干瞪眼记分 · 一个链接一场，实时同步",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e9e6dd",
+  "theme_color": "#1e6f49",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

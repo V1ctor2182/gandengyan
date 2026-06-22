@@ -6,6 +6,13 @@
 <meta name="theme-color" content="#1e6f49" media="(prefers-color-scheme: light)" />
 <meta name="theme-color" content="#15140f" media="(prefers-color-scheme: dark)" />
 <title>干瞪眼记分</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="干瞪眼">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <style>
   /* ---- Tokens ----
      Radius system: surfaces 18 / controls 11 / pills full.
@@ -36,13 +43,16 @@
     }
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;padding:0}
+  html,body{margin:0;padding:0;overscroll-behavior:none}
   body{
     font-family:var(--sans);color:var(--ink);background:var(--bg);
     min-height:100dvh;-webkit-font-smoothing:antialiased;
     padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
     letter-spacing:.01em;
+    touch-action:manipulation;
+    -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;
   }
+  input,textarea{-webkit-user-select:text;user-select:text}
   .num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:0}
   .wrap{max-width:520px;margin:0 auto;padding:8px 18px 150px}
 
@@ -366,9 +376,10 @@
   <div id="gridBody"></div>
   <div class="btn-row" style="margin-top:12px">
     <button class="btn btn-primary" id="gridAdd">＋ 加一局</button>
+    <button class="btn btn-ghost" id="gridNeg" style="flex:0 0 auto;padding:14px 20px;font-size:18px">±</button>
     <button class="btn btn-ghost" id="gridCloseBtn">关闭</button>
   </div>
-  <div class="note" style="margin-top:8px">点单元格直接改分。「平账」列每局应为 0；不平时点它，会把差额自动补到留空(0)的那格（赢家）。改动即时保存。</div>
+  <div class="note" style="margin-top:8px">点单元格直接改分。手机输负数：选中格子打数字后点 <b>±</b> 变负。「平账」列每局应为 0；不平时点它，把差额自动补到留空(0)的那格（赢家）。改动即时保存。</div>
 </div></div>
 
 <!-- Cloud -->
@@ -691,7 +702,7 @@ function renderGrid(){
   box.innerHTML=h;
   box.querySelectorAll('.gcell input').forEach(inp=>{
     inp.onchange=()=>gridSet(+inp.dataset.i,players[+inp.dataset.p].id,inp.value);
-    inp.onfocus=function(){const t=this;setTimeout(()=>{try{t.select();}catch(e){}},0);};
+    inp.onfocus=function(){_lastCell={el:this,i:+this.dataset.i,pid:players[+this.dataset.p].id};const t=this;setTimeout(()=>{try{t.select();}catch(e){}},0);};
   });
   state.rounds.forEach((r,i)=>{const c=document.getElementById("gbal-"+i);if(c)c.onclick=()=>autoBalance(i);});
 }
@@ -728,9 +739,17 @@ function gridAddRow(){
   if(cloud){sb.from("gdy_rounds").insert({room,idx:state.rounds.length+1,deltas:d}).then(({error})=>{if(error){toast("添加失败");console.warn(error);}else loadCloud();});return;}
   state.rounds.push({deltas:d});save();renderGrid();renderBoard();
 }
+let _lastCell=null;
+function gridNegate(){
+  if(!_lastCell||!_lastCell.el){toast("先点一个格子");return;}
+  const inp=_lastCell.el,v=-(parseInt(inp.value,10)||0);
+  inp.value=v;gridSet(_lastCell.i,_lastCell.pid,String(v));
+  try{inp.focus();inp.select();}catch(e){}
+}
 $("#btnGrid").onclick=()=>{renderGrid();show("#mGrid");};
 $("#gridCloseBtn").onclick=()=>hide("#mGrid");
 $("#gridAdd").onclick=gridAddRow;
+$("#gridNeg").onclick=gridNegate;
 
 function openRoom(){$("#roomCode").textContent=room||"";$("#roomName").textContent=state.name||"";$("#roomJoin").value="";show("#mRoom");}
 $("#roomShare").onclick=shareRoom;
