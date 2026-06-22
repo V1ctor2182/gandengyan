@@ -44,7 +44,7 @@
     letter-spacing:.01em;
   }
   .num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:0}
-  .wrap{max-width:520px;margin:0 auto;padding:8px 18px 110px}
+  .wrap{max-width:520px;margin:0 auto;padding:8px 18px 150px}
 
   /* ---- header ---- */
   header{display:flex;align-items:center;justify-content:space-between;padding:16px 2px 20px}
@@ -147,9 +147,15 @@
   .btn-danger{background:none;color:var(--brick);border:1px solid var(--brick-wash)}
   .btn-row{display:flex;gap:10px}
 
-  .fab{position:fixed;left:0;right:0;bottom:0;padding:14px 18px calc(16px + env(safe-area-inset-bottom));max-width:520px;margin:0 auto;
-       background:linear-gradient(180deg,transparent,var(--bg) 46%)}
+  .fab{position:fixed;left:0;right:0;bottom:0;padding:18px 18px calc(16px + env(safe-area-inset-bottom));max-width:520px;margin:0 auto;
+       background:linear-gradient(180deg,transparent,var(--bg) 38%)}
   .fab .btn-primary{box-shadow:0 12px 30px -10px rgba(30,111,73,.6)}
+  .fab-tip{text-align:center;font-size:12px;color:var(--muted);margin:0 0 9px}
+  .fab-row{display:flex;gap:8px}
+  .fab-row .btn{flex:1;padding:14px 8px;font-size:15px;gap:7px}
+  .fab-row .btn svg{width:18px;height:18px}
+  .fab-grid{background:var(--accent-wash);color:var(--accent);border:1.5px solid var(--accent)}
+  .fab-grid:hover{filter:brightness(1.02)}
 
   /* ---- sheets ---- */
   .mask{position:fixed;inset:0;background:rgba(16,14,9,.5);display:none;align-items:flex-end;justify-content:center;z-index:30}
@@ -271,17 +277,11 @@
       </div>
     </div>
     <div class="hbtns">
-      <button class="icon-btn key" id="btnGrid" aria-label="表格录入">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M3.5 9.5h17M3.5 14.5h17M9 4.5v15M15 4.5v15"/></svg>
-      </button>
       <button class="icon-btn" id="btnStats" aria-label="战绩走势">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v15.5a.5.5 0 0 0 .5.5H20"/><path d="M7.5 14.5 11 10l3 2.5 4-5.5"/></svg>
       </button>
       <button class="icon-btn" id="btnHist" aria-label="历史">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.6V12l3 1.8"/></svg>
-      </button>
-      <button class="icon-btn key" id="btnPlayers" aria-label="玩家">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.1"/><path d="M3.8 18.6c0-2.9 2.4-4.7 5.2-4.7s5.2 1.8 5.2 4.7"/><path d="M16 5.7a3 3 0 0 1 0 5.4"/><path d="M17.3 13.6c2.2.5 3.6 2 3.6 4.4"/></svg>
       </button>
       <button class="icon-btn" id="btnMenu" aria-label="更多">
         <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
@@ -296,9 +296,18 @@
 
 <div class="toast" id="toast"></div>
 <div class="fab">
-  <button class="btn btn-primary" id="btnNew">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>记一局
-  </button>
+  <div class="fab-tip">习惯用表格的，点「表格」可整行录入、随手改分</div>
+  <div class="fab-row">
+    <button class="btn btn-ghost" id="btnPlayers" aria-label="玩家">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.1"/><path d="M3.8 18.6c0-2.9 2.4-4.7 5.2-4.7s5.2 1.8 5.2 4.7"/><path d="M16 5.7a3 3 0 0 1 0 5.4"/><path d="M17.3 13.6c2.2.5 3.6 2 3.6 4.4"/></svg>玩家
+    </button>
+    <button class="btn btn-primary" id="btnNew">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>记一局
+    </button>
+    <button class="btn fab-grid" id="btnGrid" aria-label="表格录入">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M3.5 9.5h17M3.5 14.5h17M9 4.5v15M15 4.5v15"/></svg>表格
+    </button>
+  </div>
 </div>
 
 <!-- New round -->
