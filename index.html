@@ -264,7 +264,7 @@
   .land-in{margin-bottom:12px;text-align:center;font-family:var(--sans);font-size:15px}
   .land-or{font-size:12px;color:var(--faint);margin:22px 0 12px}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase.js"></script>
 </head>
 <body>
 <div class="landing" id="landing">
@@ -491,36 +491,73 @@ const CLOUD_BAKED={url:"https://xlupwlcjqwxjiqaihtjr.supabase.co",key:"eyJhbGciO
 let sb=null,cloud=false,room=null,_reloadT=null;
 function cloudCfg(){if(CLOUD_BAKED.url&&CLOUD_BAKED.key)return CLOUD_BAKED;try{return JSON.parse(localStorage.getItem(CLOUD_KEY))||null;}catch(e){return null;}}
 function initCloud(){const c=cloudCfg();if(c&&c.url&&c.key&&window.supabase){try{sb=window.supabase.createClient(c.url,c.key);cloud=true;}catch(e){cloud=false;}}}
+/* 离线：每个 room 缓存最近一份数据 + 一条待同步队列 */
+function ccKey(){return "gdy_cc_"+room;}
+function pqKey(){return "gdy_pq_"+room;}
+function getPending(){try{return JSON.parse(localStorage.getItem(pqKey()))||[];}catch(e){return [];}}
+function setPending(a){try{localStorage.setItem(pqKey(),JSON.stringify(a));}catch(e){}}
+function applyCloudState(server){
+  const players=server.players.slice(),have=new Set(players.map(p=>p.id)),pend=getPending();
+  pend.forEach(d=>Object.keys(d).forEach(n=>{if(!have.has(n)){have.add(n);players.push({id:n,name:n});}}));
+  const rounds=server.rounds.concat(pend.map(d=>({deltas:d,_pending:true})));
+  state={code:room,name:server.name||state.name||("对局 "+room),players,rounds};
+  renderAll();
+  if($("#mStats").classList.contains("on"))renderStats();
+  if($("#mGrid").classList.contains("on"))renderGrid();
+}
 async function loadCloud(){
   try{
     const [g,r1,r2]=await Promise.all([
       sb.from("gdy_games").select("name").eq("room",room).maybeSingle(),
-      sb.from("gdy_rounds").select("id,idx,deltas").eq("room",room).order("idx",{ascending:true}).order("id",{ascending:true}),
+      sb.from("gdy_rounds").select("id,deltas").eq("room",room).order("id",{ascending:true}),
       sb.from("gdy_players").select("name,ord").eq("room",room).order("ord",{ascending:true})
     ]);
     if(r1.error)throw r1.error;
     const names=(r2.data||[]).map(p=>p.name),seen=new Set(names);
     (r1.data||[]).forEach(r=>Object.keys(r.deltas||{}).forEach(n=>{if(!seen.has(n)){seen.add(n);names.push(n);}}));
-    const players=names.map(n=>({id:n,name:n}));
-    const rounds=(r1.data||[]).map(r=>({_id:r.id,deltas:r.deltas||{}}));
-    state={code:room,name:(g&&g.data&&g.data.name)||("对局 "+room),players,rounds};
-    renderAll();
-    if($("#mStats").classList.contains("on"))renderStats();
-    if($("#mGrid").classList.contains("on"))renderGrid();
-  }catch(e){console.warn(e);toast("数据加载失败，请稍后重试");}
+    const server={name:(g&&g.data&&g.data.name)||("对局 "+room),players:names.map(n=>({id:n,name:n})),rounds:(r1.data||[]).map(r=>({_id:r.id,deltas:r.deltas||{}}))};
+    try{localStorage.setItem(ccKey(),JSON.stringify(server));}catch(e){}
+    applyCloudState(server);
+    flushQueue();
+  }catch(e){
+    console.warn(e);
+    let cached=null;try{cached=JSON.parse(localStorage.getItem(ccKey()));}catch(_){}
+    if(cached){applyCloudState(cached);toast("离线中 · 显示本地缓存");}
+    else toast("数据加载失败，请稍后重试");
+  }
 }
 function subscribeCloud(){
   sb.channel("gdy-"+room)
     .on("postgres_changes",{event:"*",schema:"public",table:"gdy_rounds",filter:"room=eq."+room},reloadCloudSoon)
     .on("postgres_changes",{event:"*",schema:"public",table:"gdy_players",filter:"room=eq."+room},reloadCloudSoon)
     .subscribe();
+  window.addEventListener("online",()=>{toast("已联网 · 同步中");loadCloud();});
 }
 function reloadCloudSoon(){clearTimeout(_reloadT);_reloadT=setTimeout(loadCloud,250);}
-async function cloudInsertRound(deltas){
-  const {error}=await sb.from("gdy_rounds").insert({room,idx:(state.rounds.length||0)+1,deltas});
-  if(error){toast("写入失败");console.warn(error);}else{toast("已记录");loadCloud();}
+function enqueueRound(deltas){
+  const pend=getPending();pend.push(deltas);setPending(pend);
+  Object.keys(deltas).forEach(n=>{if(!state.players.find(p=>p.id===n))state.players.push({id:n,name:n});});
+  state.rounds.push({deltas,_pending:true});
+  renderAll();if($("#mGrid").classList.contains("on"))renderGrid();
 }
-async function cloudDeleteRound(id){const {error}=await sb.from("gdy_rounds").delete().eq("id",id);if(error){toast("删除失败");console.warn(error);}else loadCloud();}
+async function flushQueue(){
+  let pend=getPending();if(!pend.length||!navigator.onLine)return;
+  const remaining=[];
+  for(const d of pend){const {error}=await sb.from("gdy_rounds").insert({room,deltas:d});if(error)remaining.push(d);}
+  const changed=remaining.length!==pend.length;setPending(remaining);
+  if(changed)loadCloud();
+}
+function cloudPersistRound(r){
+  if(r._pending){setPending(state.rounds.filter(x=>x._pending).map(x=>x.deltas));return;}
+  if(r._id!=null)sb.from("gdy_rounds").update({deltas:r.deltas}).eq("id",r._id).then(({error})=>{if(error){toast("离线中 · 改动未同步");console.warn(error);}});
+}
+async function cloudInsertRound(deltas){
+  if(!navigator.onLine){enqueueRound(deltas);toast("离线已记 · 联网后同步");return;}
+  const {error}=await sb.from("gdy_rounds").insert({room,deltas});
+  if(error){enqueueRound(deltas);toast("已记 · 待联网同步");console.warn(error);}
+  else{toast("已记录");loadCloud();}
+}
+async function cloudDeleteRound(id){const {error}=await sb.from("gdy_rounds").delete().eq("id",id);if(error){toast("离线中 · 暂不能删，联网后再试");console.warn(error);}else loadCloud();}
 async function cloudAddPlayer(name){const {error}=await sb.from("gdy_players").upsert({room,name,ord:state.players.length},{onConflict:"room,name"});if(error){toast("添加失败");console.warn(error);}else loadCloud();}
 function roomLink(){const u=new URL(location.href);u.searchParams.set("g",room);return u.toString();}
 async function copyText(t){try{await navigator.clipboard.writeText(t);toast("链接已复制");}catch(e){prompt("复制链接：",t);}}
@@ -702,7 +739,8 @@ function renderGrid(){
   box.innerHTML=h;
   box.querySelectorAll('.gcell input').forEach(inp=>{
     inp.onchange=()=>gridSet(+inp.dataset.i,players[+inp.dataset.p].id,inp.value);
-    inp.onfocus=function(){_lastCell={el:this,i:+this.dataset.i,pid:players[+this.dataset.p].id};const t=this;setTimeout(()=>{try{t.select();}catch(e){}},0);};
+    inp.onfocus=function(){_lastCell={el:this,i:+this.dataset.i,pid:players[+this.dataset.p].id};const t=this;setTimeout(()=>{try{t.select();}catch(e){}try{t.scrollIntoView({block:"center"});}catch(e){}},0);};
+    inp.onkeydown=function(e){if(e.key==="Enter"||e.key==="Tab"){e.preventDefault();gridSet(+this.dataset.i,players[+this.dataset.p].id,this.value);gridFocusNext(+this.dataset.i,+this.dataset.p);}};
   });
   state.rounds.forEach((r,i)=>{const c=document.getElementById("gbal-"+i);if(c)c.onclick=()=>autoBalance(i);});
 }
@@ -716,8 +754,7 @@ function gridSet(i,pid,raw){
   let r=state.rounds[i];if(!r)return;
   if(!r.deltas)r=state.rounds[i]={deltas:roundDeltas(r,state),_id:r._id};
   r.deltas[pid]=v;
-  if(cloud){if(r._id!=null)sb.from("gdy_rounds").update({deltas:r.deltas}).eq("id",r._id).then(({error})=>{if(error){toast("保存失败");console.warn(error);}});}
-  else save();
+  if(cloud)cloudPersistRound(r); else save();
   const bc=document.getElementById("gbal-"+i);if(bc){const s=rowSum(r);bc.textContent=balTxt(s);bc.className="gbal "+(s===0?"ok":"bad");}
   refreshGridTotals();renderBoard();
 }
@@ -729,15 +766,21 @@ function autoBalance(i){
   const zeros=state.players.filter(p=>!(r.deltas[p.id]));
   if(zeros.length!==1){toast("把赢家那格留 0，再点平账自动补");return;}
   r.deltas[zeros[0].id]=-s;
-  if(cloud){if(r._id!=null)sb.from("gdy_rounds").update({deltas:r.deltas}).eq("id",r._id).then(({error})=>{if(error){toast("保存失败");console.warn(error);}});}
-  else save();
+  if(cloud)cloudPersistRound(r); else save();
   renderGrid();renderBoard();toast("已平账");
 }
 function gridAddRow(){
   if(!state.players.length){toast("先添加玩家");return;}
   const d={};state.players.forEach(p=>d[p.id]=0);
-  if(cloud){sb.from("gdy_rounds").insert({room,idx:state.rounds.length+1,deltas:d}).then(({error})=>{if(error){toast("添加失败");console.warn(error);}else loadCloud();});return;}
+  if(cloud){cloudInsertRound(d);return;}
   state.rounds.push({deltas:d});save();renderGrid();renderBoard();
+}
+function gridFocusNext(i,p){
+  const n=state.players.length;let ni=i,np=p+1;
+  if(np>=n){ni=i+1;np=0;}
+  if(ni>=state.rounds.length)return;
+  const el=document.querySelector('.gcell input[data-i="'+ni+'"][data-p="'+np+'"]');
+  if(el){el.focus();}
 }
 let _lastCell=null;
 function gridNegate(){
@@ -929,6 +972,7 @@ function show(id){$(id).classList.add("on");}
 function hide(id){$(id).classList.remove("on");}
 document.querySelectorAll(".mask").forEach(m=>m.addEventListener("click",e=>{if(e.target===m)m.classList.remove("on");}));
 
+if("serviceWorker" in navigator){window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js").catch(()=>{});});}
 boot();
 </script>
 </body>
