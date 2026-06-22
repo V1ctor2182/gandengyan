@@ -136,6 +136,10 @@
   .gtot td{background:var(--bg);font-weight:700;font-family:var(--mono);padding:10px 5px;font-size:13px;position:sticky;bottom:0;z-index:1}
   .gtot td.idx{z-index:3}
   .gtot td.pos{color:var(--accent)}.gtot td.neg{color:var(--brick)}
+  .gbal{font-family:var(--mono);font-size:12.5px;font-weight:700;min-width:48px;padding:0 8px;background:var(--bg);cursor:pointer}
+  .gbal.ok{color:var(--accent)}
+  .gbal.bad{color:var(--brick)}
+  .gtot .gbal{cursor:default}
 
   /* ---- buttons ---- */
   .btn{border:none;border-radius:var(--r-c);font-family:inherit;font-size:16px;font-weight:600;padding:15px;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:9px;transition:transform .08s,filter .15s}
@@ -364,7 +368,7 @@
     <button class="btn btn-primary" id="gridAdd">＋ 加一局</button>
     <button class="btn btn-ghost" id="gridCloseBtn">关闭</button>
   </div>
-  <div class="note" style="margin-top:8px">点单元格直接改分；表头人名与底部「累计」会一直吸附可见。改动即时保存（云端模式写回 Supabase）。</div>
+  <div class="note" style="margin-top:8px">点单元格直接改分。「平账」列每局应为 0；不平时点它，会把差额自动补到留空(0)的那格（赢家）。改动即时保存。</div>
 </div></div>
 
 <!-- Cloud -->
@@ -665,26 +669,33 @@ function renderStats(){
 }
 
 /* ---- 表格录入 grid ---- */
+function rowSum(r){const d=r.deltas?r.deltas:roundDeltas(r,state);let s=0;state.players.forEach(p=>s+=(d[p.id]||0));return s;}
+function balTxt(s){return s===0?"平":(s>0?"+":"")+s;}
 function renderGrid(){
   const box=$("#gridBody"),players=state.players;
-  if(!players.length){box.innerHTML='<div class="empty">先在「玩家」里添加玩家，再用表格录入。</div>';return;}
+  if(!players.length){box.innerHTML='<div class="empty">先添加玩家，再用表格录入。</div>';return;}
   let h='<div class="gridwrap"><table class="gtable"><thead><tr><th class="idx">局</th>';
   players.forEach(p=>h+='<th>'+esc(p.name)+'</th>');
-  h+='</tr></thead><tbody>';
+  h+='<th>平账</th></tr></thead><tbody>';
   state.rounds.forEach((r,i)=>{
-    const d=r.deltas?r.deltas:roundDeltas(r,state);
+    const d=r.deltas?r.deltas:roundDeltas(r,state),s=rowSum(r);
     h+='<tr><td class="idx">'+(i+1)+'</td>';
     players.forEach((p,j)=>{h+='<td class="gcell"><input inputmode="numeric" pattern="-?[0-9]*" data-i="'+i+'" data-p="'+j+'" value="'+(d[p.id]||0)+'"></td>';});
-    h+='</tr>';
+    h+='<td class="gbal '+(s===0?"ok":"bad")+'" id="gbal-'+i+'">'+balTxt(s)+'</td></tr>';
   });
   h+='</tbody><tfoot><tr class="gtot"><td class="idx">累计</td>';
-  const t=totals(state);
-  players.forEach((p,j)=>{const v=t[p.id];h+='<td id="gtot-'+j+'" class="'+(v>0?'pos':v<0?'neg':'')+'">'+(v>0?'+':'')+v+'</td>';});
+  const t=totals(state);let gt=0;
+  players.forEach((p,j)=>{const v=t[p.id];gt+=v;h+='<td id="gtot-'+j+'" class="'+(v>0?"pos":v<0?"neg":"")+'">'+(v>0?"+":"")+v+'</td>';});
+  h+='<td class="gbal '+(gt===0?"ok":"bad")+'" id="gtotbal">'+balTxt(gt)+'</td>';
   h+='</tr></tfoot></table></div>';
   box.innerHTML=h;
-  box.querySelectorAll('.gcell input').forEach(inp=>{
-    inp.onchange=()=>gridSet(+inp.dataset.i,players[+inp.dataset.p].id,inp.value);
-  });
+  box.querySelectorAll('.gcell input').forEach(inp=>{inp.onchange=()=>gridSet(+inp.dataset.i,players[+inp.dataset.p].id,inp.value);});
+  state.rounds.forEach((r,i)=>{const c=document.getElementById("gbal-"+i);if(c)c.onclick=()=>autoBalance(i);});
+}
+function refreshGridTotals(){
+  const t=totals(state);let gt=0;
+  state.players.forEach((p,j)=>{const c=document.getElementById("gtot-"+j);const tv=t[p.id];gt+=tv;if(c){c.textContent=(tv>0?"+":"")+tv;c.className=(tv>0?"pos":tv<0?"neg":"");}});
+  const fb=document.getElementById("gtotbal");if(fb){fb.textContent=balTxt(gt);fb.className="gbal "+(gt===0?"ok":"bad");}
 }
 function gridSet(i,pid,raw){
   const v=parseInt(raw,10)||0;
@@ -693,9 +704,20 @@ function gridSet(i,pid,raw){
   r.deltas[pid]=v;
   if(cloud){if(r._id!=null)sb.from("gdy_rounds").update({deltas:r.deltas}).eq("id",r._id).then(({error})=>{if(error){toast("保存失败");console.warn(error);}});}
   else save();
-  const t=totals(state);
-  state.players.forEach((p,j)=>{const c=document.getElementById("gtot-"+j);if(c){const tv=t[p.id];c.textContent=(tv>0?"+":"")+tv;c.className=(tv>0?"pos":tv<0?"neg":"");}});
-  renderBoard();
+  const bc=document.getElementById("gbal-"+i);if(bc){const s=rowSum(r);bc.textContent=balTxt(s);bc.className="gbal "+(s===0?"ok":"bad");}
+  refreshGridTotals();renderBoard();
+}
+function autoBalance(i){
+  let r=state.rounds[i];if(!r)return;
+  if(!r.deltas)r=state.rounds[i]={deltas:roundDeltas(r,state),_id:r._id};
+  const s=rowSum(r);
+  if(s===0){toast("这一局已平账");return;}
+  const zeros=state.players.filter(p=>!(r.deltas[p.id]));
+  if(zeros.length!==1){toast("把赢家那格留 0，再点平账自动补");return;}
+  r.deltas[zeros[0].id]=-s;
+  if(cloud){if(r._id!=null)sb.from("gdy_rounds").update({deltas:r.deltas}).eq("id",r._id).then(({error})=>{if(error){toast("保存失败");console.warn(error);}});}
+  else save();
+  renderGrid();renderBoard();toast("已平账");
 }
 function gridAddRow(){
   if(!state.players.length){toast("先添加玩家");return;}
