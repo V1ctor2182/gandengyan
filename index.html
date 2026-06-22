@@ -57,6 +57,8 @@
   .icon-btn svg{width:20px;height:20px}
   .icon-btn:hover{color:var(--ink);background:var(--surface)}
   .icon-btn:active{transform:scale(.92)}
+  .icon-btn.key{color:var(--accent);background:var(--accent-wash)}
+  .icon-btn.key:hover{color:var(--accent)}
 
   /* ---- scoreboard ---- */
   .sec-head{display:flex;align-items:baseline;justify-content:space-between;padding:0 2px 12px}
@@ -74,6 +76,10 @@
   .prow.lead::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
   .prow.lead .rank{color:var(--accent)}
   .empty{color:var(--muted);text-align:center;padding:30px 16px;font-size:14px;line-height:1.7}
+  .emptybig{padding:34px 20px 30px;text-align:center}
+  .emptybig .eb-t{font-size:18px;font-weight:700;margin-bottom:6px}
+  .emptybig .eb-s{font-size:13.5px;color:var(--muted);margin-bottom:20px;line-height:1.6}
+  .emptybig .btn{max-width:240px;margin-left:auto;margin-right:auto}
 
   /* session bar + list */
   .sessionbar{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-c);padding:11px 14px;margin:0 0 16px;cursor:pointer;transition:background .15s}
@@ -265,7 +271,7 @@
       </div>
     </div>
     <div class="hbtns">
-      <button class="icon-btn" id="btnGrid" aria-label="表格录入">
+      <button class="icon-btn key" id="btnGrid" aria-label="表格录入">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M3.5 9.5h17M3.5 14.5h17M9 4.5v15M15 4.5v15"/></svg>
       </button>
       <button class="icon-btn" id="btnStats" aria-label="战绩走势">
@@ -274,7 +280,7 @@
       <button class="icon-btn" id="btnHist" aria-label="历史">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.6V12l3 1.8"/></svg>
       </button>
-      <button class="icon-btn" id="btnPlayers" aria-label="玩家">
+      <button class="icon-btn key" id="btnPlayers" aria-label="玩家">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.1"/><path d="M3.8 18.6c0-2.9 2.4-4.7 5.2-4.7s5.2 1.8 5.2 4.7"/><path d="M16 5.7a3 3 0 0 1 0 5.4"/><path d="M17.3 13.6c2.2.5 3.6 2 3.6 4.4"/></svg>
       </button>
       <button class="icon-btn" id="btnMenu" aria-label="更多">
@@ -565,7 +571,15 @@ function roundSum(r){let s=0;state.players.forEach(p=>{if(p.id!==r.winnerId)s+=s
 function renderBoard(){
   const t=totals(),board=$("#board");board.innerHTML="";
   $("#roundCount").textContent=state.rounds.length?"已记 "+state.rounds.length+" 局":"尚无记录";
-  if(!state.players.length){board.innerHTML='<div class="empty">还没有玩家，点右上角添加</div>';return;}
+  if(!state.players.length){
+    board.innerHTML='<div class="emptybig"><div class="eb-t">先把牌友加进来</div>'
+      +'<div class="eb-s">添加玩家后就能记分、用表格录入。</div>'
+      +'<button class="btn btn-primary" id="ebAddP">添加玩家</button>'
+      +'<button class="btn btn-ghost" id="ebGrid" style="margin-top:10px">表格录入</button></div>';
+    $("#ebAddP").onclick=openPlayers;
+    $("#ebGrid").onclick=()=>{renderGrid();show("#mGrid");};
+    return;
+  }
   const order=[...state.players].sort((a,b)=>t[b.id]-t[a.id]);
   const max=Math.max(...order.map(p=>t[p.id]));
   order.forEach((p,i)=>{
