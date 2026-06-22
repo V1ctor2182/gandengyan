@@ -689,7 +689,10 @@ function renderGrid(){
   h+='<td class="gbal '+(gt===0?"ok":"bad")+'" id="gtotbal">'+balTxt(gt)+'</td>';
   h+='</tr></tfoot></table></div>';
   box.innerHTML=h;
-  box.querySelectorAll('.gcell input').forEach(inp=>{inp.onchange=()=>gridSet(+inp.dataset.i,players[+inp.dataset.p].id,inp.value);});
+  box.querySelectorAll('.gcell input').forEach(inp=>{
+    inp.onchange=()=>gridSet(+inp.dataset.i,players[+inp.dataset.p].id,inp.value);
+    inp.onfocus=function(){const t=this;setTimeout(()=>{try{t.select();}catch(e){}},0);};
+  });
   state.rounds.forEach((r,i)=>{const c=document.getElementById("gbal-"+i);if(c)c.onclick=()=>autoBalance(i);});
 }
 function refreshGridTotals(){
