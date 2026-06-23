@@ -8,3 +8,10 @@
 干瞪眼记分-备份.json
 *-备份.json
 .vercel
+
+# Next.js
+/node_modules
+/.next
+/out
+next-env.d.ts
+*.tsbuildinfo

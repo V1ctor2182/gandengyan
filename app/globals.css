@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---- 设计 token（纸张 / 墨绿，单一强调色；深色随系统切换）---- */
+:root {
+  --bg: #e9e6dd; --surface: #f6f4ee; --raised: #fbfaf5;
+  --ink: #1c1b17; --muted: #6f6c62; --faint: #9b988c;
+  --line: rgba(28,27,23,.10); --line-2: rgba(28,27,23,.06);
+  --accent: #1e6f49; --accent-ink: #0f4d31; --accent-wash: rgba(30,111,73,.10);
+  --brick: #ad3f2c; --brick-wash: rgba(173,63,44,.10);
+  --on-accent: #f6f4ee;
+  --shadow: 0 18px 40px -22px rgba(20,18,12,.45);
+  --sheet-sh: 0 -18px 60px -20px rgba(20,18,12,.5);
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  --sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15140f; --surface: #211f18; --raised: #2a271f;
+    --ink: #efece1; --muted: #a4a092; --faint: #6f6c61;
+    --line: rgba(255,255,255,.10); --line-2: rgba(255,255,255,.05);
+    --accent: #52b585; --accent-ink: #7fd0a7; --accent-wash: rgba(82,181,133,.14);
+    --brick: #dd7a62; --brick-wash: rgba(221,122,98,.14);
+    --on-accent: #0c1f16;
+    --shadow: 0 20px 46px -22px rgba(0,0,0,.7);
+    --sheet-sh: 0 -20px 60px -16px rgba(0,0,0,.75);
+  }
+}
+
+@layer base {
+  html, body { margin: 0; padding: 0; overscroll-behavior: none; }
+  body {
+    font-family: var(--sans);
+    color: var(--ink);
+    background: var(--bg);
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    letter-spacing: .01em;
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none; user-select: none;
+  }
+  input, textarea { -webkit-user-select: text; user-select: text; }
+  * { -webkit-tap-highlight-color: transparent; }
+}
+
+/* 等宽数字（榜单/表格用） */
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
