@@ -467,10 +467,10 @@ function RecordSheet({ draft, players, onChange, winSum }: { draft: React.Mutabl
                 <div className="top"><div className="lnm">{p.name}</div><div className="lsc num">{"−" + scoreOf(L, d.dealBomb)}</div></div>
                 <div className="calc">{calcText(L, d.dealBomb)}</div>
                 <div className="stepgrid">
-                  <Stepper label="剩牌" value={L.cards} min={0} max={6} onChange={(v) => { L.cards = v; upd(); }} />
+                  <Stepper label="剩牌" value={L.cards} min={0} max={5} onChange={(v) => { L.cards = v; upd(); }} />
                   <Stepper label="2 的个数" value={L.twos} min={0} max={4} onChange={(v) => { L.twos = v; upd(); }} />
                   <Stepper label="炸弹个数" value={L.bombs} min={0} max={2} onChange={(v) => { L.bombs = v; upd(); }} />
-                  <div className={"heldhint" + (held(L) ? " on" : "")}><span>满手关到底 ×2</span></div>
+                  <div className={"heldhint" + (held(L) ? " on" : "")} style={{ cursor: "pointer" }} onClick={() => { L.cards = 5; upd(); }}><span>满手关到底 ×2</span></div>
                 </div>
               </div>
             );
