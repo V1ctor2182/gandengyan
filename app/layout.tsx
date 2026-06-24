@@ -2,17 +2,13 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  // 图标用 app/icon.png、app/apple-icon.png 文件约定，Next 会自动带上 basePath。
   title: "干瞪眼记分",
   description: "干瞪眼记分 · 一个链接一场，实时同步",
-  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "干瞪眼",
-  },
-  icons: {
-    icon: "/icon-192.png",
-    apple: "/apple-touch-icon.png",
   },
 };
 
