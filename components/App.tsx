@@ -207,7 +207,7 @@ export default function App() {
     if (!S.rounds.length) { toast("没有可撤销的局"); return; }
     const last = S.rounds[S.rounds.length - 1];
     if (isDeltaRound(last) && last._id != null) cloudDeleteRound(last._id);
-    hide("menu");
+    else toast("最近一局正在同步，请稍后再撤销");
   }
 
   if (!mounted) return <div className="wrap" />;
@@ -311,8 +311,9 @@ export default function App() {
         <GridSheet S={S} t={t} rowSum={rowSum} gridSet={gridSet} autoBalance={autoBalance} lastCell={lastCell} focusNext={gridFocusNext} />
         <div className="btn-row" style={{ marginTop: 12 }}>
           <button className="btn btn-primary" style={{ flex: 1 }} onClick={gridAddRow}>＋ 加一局</button>
-          <button className="btn btn-ghost" style={{ flex: "0 0 auto", width: "auto", padding: "14px 20px", fontSize: 18 }} onClick={gridNegate}>±</button>
-          <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => hide("grid")}>关闭</button>
+          <button className="btn btn-ghost" style={{ flex: "0 0 auto", width: "auto", padding: "14px 18px", fontSize: 18 }} onClick={gridNegate}>±</button>
+          <button className="btn btn-ghost" style={{ flex: "0 0 auto", width: "auto", padding: "14px 14px" }} onClick={undoLast}>撤销</button>
+          <button className="btn btn-ghost" style={{ flex: "0 0 auto", width: "auto", padding: "14px 14px" }} onClick={() => hide("grid")}>关闭</button>
         </div>
         <div className="note" style={{ marginTop: 8 }}>点单元格直接改分。手机输负数：选中格子打数字后点 <b>±</b> 变负。「平账」列每局应为 0；不平时点它，把差额自动补到留空(0)的那格（赢家）。改动即时保存。</div>
       </Mask>
@@ -321,7 +322,10 @@ export default function App() {
       <Mask on={open.hist} onClose={() => hide("hist")}>
         <div className="grip" /><h3>对局历史</h3>
         <HistorySheet S={S} onDelete={(r) => { if (isDeltaRound(r) && r._id != null) cloudDeleteRound(r._id); hide("hist"); }} />
-        <button className="btn btn-ghost" style={{ marginTop: 6 }} onClick={() => hide("hist")}>关闭</button>
+        <div className="btn-row" style={{ marginTop: 6 }}>
+          <button className="btn btn-ghost" onClick={undoLast}>撤销最近一局</button>
+          <button className="btn btn-ghost" onClick={() => hide("hist")}>关闭</button>
+        </div>
       </Mask>
 
       {/* ---- 玩家 ---- */}
@@ -349,8 +353,8 @@ export default function App() {
       {/* ---- 更多 ---- */}
       <Mask on={open.menu} onClose={() => hide("menu")}>
         <div className="grip" /><h3>更多</h3>
-        <div className="menu-item"><button className="btn btn-ghost" onClick={undoLast}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M9 7 5 11l4 4"/><path d="M5 11h9a5 5 0 0 1 0 10"/></svg>撤销最近一局
+        <div className="menu-item"><button className="btn btn-ghost" onClick={() => { hide("menu"); shareRoom(); }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9l5-5M19 4v5h-5"/><path d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>分享链接
         </button></div>
         <div className="rulebox note">
           <b>算分规则</b><br />
