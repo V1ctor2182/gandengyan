@@ -14,7 +14,6 @@ const CLOUD = {
 const PAL = ["#2f6f4f","#c0563a","#3a6ea5","#b8902f","#8a5fb0","#4aa6a0","#c76a8e","#6b8e3a","#d08a3e","#5a6470"];
 
 const Trash = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 12h10l1-12"/></svg>;
-const XMark = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>;
 const Spade = ({ cls }: { cls?: string }) => <svg className={cls} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6C8.7 7 4 9.3 4 13.4c0 2.4 1.9 4.1 4.1 4.1 1.1 0 2-.4 2.7-1.1-.2 1.8-1 3.1-2.3 4h7c-1.3-.9-2.1-2.2-2.3-4 .7.7 1.6 1.1 2.7 1.1 2.2 0 4.1-1.7 4.1-4.1C20 9.3 15.3 7 12 2.6Z"/></svg>;
 
 type Draft = { winnerId: string | null; dealBomb: number; losers: Record<string, Loser> };
@@ -150,7 +149,7 @@ export default function App() {
 
   /* ---------- 记一局（计算器） ---------- */
   function openNew() {
-    if (S.players.length < 2) { alert("至少需要 2 个玩家"); return; }
+    if (S.players.length < 2) { toast("先加满 2 个玩家"); show("players"); return; }
     const losers: Record<string, Loser> = {};
     S.players.forEach((p) => (losers[p.id] = { cards: 1, twos: 0, bombs: 0, allHeld: false }));
     draft.current = { winnerId: null, dealBomb: 0, losers };
@@ -159,7 +158,7 @@ export default function App() {
   function draftWinSum() { const d = draft.current; if (!d) return 0; let s = 0; S.players.forEach((p) => { if (p.id !== d.winnerId) s += scoreOf(d.losers[p.id], d.dealBomb); }); return s; }
   function saveNew() {
     const d = draft.current!;
-    if (!d.winnerId) { alert("请先选择赢家"); return; }
+    if (!d.winnerId) { toast("请先选择赢家"); return; }
     const deltas: Record<string, number> = {}; let sum = 0;
     S.players.forEach((p) => { if (p.id === d.winnerId) return; const sc = scoreOf(d.losers[p.id], d.dealBomb); deltas[p.id] = -sc; sum += sc; });
     deltas[d.winnerId] = (deltas[d.winnerId] || 0) + sum;
@@ -203,15 +202,9 @@ export default function App() {
     if (el) el.focus();
   }
 
-  /* ---------- 玩家 ---------- */
-  function addPlayer() {
-    const nm = prompt("新玩家名字");
-    if (nm && nm.trim()) { cloudAddPlayer(nm.trim()); hide("players"); }
-  }
-
   /* ---------- 菜单 ---------- */
   function undoLast() {
-    if (!S.rounds.length) { alert("没有可撤销的局"); return; }
+    if (!S.rounds.length) { toast("没有可撤销的局"); return; }
     const last = S.rounds[S.rounds.length - 1];
     if (isDeltaRound(last) && last._id != null) cloudDeleteRound(last._id);
     hide("menu");
@@ -268,7 +261,7 @@ export default function App() {
             <div className="emptybig">
               <div className="eb-t">先把牌友加进来</div>
               <div className="eb-s">添加玩家后就能记分、用表格录入。</div>
-              <button className="btn btn-primary" onClick={addPlayer}>添加玩家</button>
+              <button className="btn btn-primary" onClick={() => show("players")}>添加玩家</button>
               <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => show("grid")}>表格录入</button>
             </div>
           ) : order.map((p, i) => {
@@ -317,9 +310,9 @@ export default function App() {
         <div className="grip" /><h3>表格录入</h3>
         <GridSheet S={S} t={t} rowSum={rowSum} gridSet={gridSet} autoBalance={autoBalance} lastCell={lastCell} focusNext={gridFocusNext} />
         <div className="btn-row" style={{ marginTop: 12 }}>
-          <button className="btn btn-primary" onClick={gridAddRow}>＋ 加一局</button>
-          <button className="btn btn-ghost" style={{ flex: "0 0 auto", padding: "14px 20px", fontSize: 18 }} onClick={gridNegate}>±</button>
-          <button className="btn btn-ghost" onClick={() => hide("grid")}>关闭</button>
+          <button className="btn btn-primary" style={{ flex: 1 }} onClick={gridAddRow}>＋ 加一局</button>
+          <button className="btn btn-ghost" style={{ flex: "0 0 auto", width: "auto", padding: "14px 20px", fontSize: 18 }} onClick={gridNegate}>±</button>
+          <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => hide("grid")}>关闭</button>
         </div>
         <div className="note" style={{ marginTop: 8 }}>点单元格直接改分。手机输负数：选中格子打数字后点 <b>±</b> 变负。「平账」列每局应为 0；不平时点它，把差额自动补到留空(0)的那格（赢家）。改动即时保存。</div>
       </Mask>
@@ -334,18 +327,7 @@ export default function App() {
       {/* ---- 玩家 ---- */}
       <Mask on={open.players} onClose={() => hide("players")}>
         <div className="grip" /><h3>玩家设置</h3>
-        <div>
-          {S.players.map((p, i) => (
-            <div className="prow-edit" key={p.id}>
-              <input defaultValue={p.name} readOnly placeholder={"玩家" + (i + 1)} />
-              <button className="rm" aria-label="删除玩家" onClick={() => toast("联机对局暂不支持在这改名/删除玩家")}><XMark /></button>
-            </div>
-          ))}
-        </div>
-        <button className="btn addp" style={{ margin: "4px 0 14px" }} onClick={addPlayer}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 6v12M6 12h12"/></svg>添加玩家
-        </button>
-        <div className="note">2–12 人。改名/删除请在数据后台调整。</div>
+        <PlayersSheet players={S.players} onAdd={(name) => cloudAddPlayer(name)} />
         <button className="btn btn-ghost" style={{ marginTop: 14 }} onClick={() => hide("players")}>完成</button>
       </Mask>
 
@@ -415,6 +397,25 @@ function Landing({ on, onCreate, onJoin }: { on: boolean; onCreate: (n: string, 
           <button className="btn btn-ghost" style={{ width: "auto", padding: "13px 20px" }} onClick={() => onJoin(code)}>加入</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PlayersSheet({ players, onAdd }: { players: Player[]; onAdd: (name: string) => void }) {
+  const [name, setName] = useState("");
+  const add = () => { const n = name.trim(); if (!n) return; onAdd(n); setName(""); };
+  return (
+    <div>
+      {players.map((p, i) => (
+        <div className="prow-edit" key={p.id}>
+          <input defaultValue={p.name} readOnly placeholder={"玩家" + (i + 1)} />
+        </div>
+      ))}
+      <div className="prow-edit" style={{ marginTop: players.length ? 4 : 0 }}>
+        <input value={name} placeholder="新玩家名字" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+        <button className="btn btn-primary" style={{ width: "auto", padding: "13px 18px" }} onClick={add}>添加</button>
+      </div>
+      <div className="note" style={{ marginTop: 10 }}>2–12 人。点「添加」加入玩家；改名/删除请在数据后台调整。</div>
     </div>
   );
 }
@@ -501,7 +502,7 @@ function GridCell({ i, p, value, onCommit, onFocusCell, focusNext, lastCell }: {
         data-i={i} data-p={p}
         inputMode="numeric"
         onFocus={(e) => { const el = e.currentTarget; onFocusCell(el); setTimeout(() => { try { el.select(); } catch {} try { el.scrollIntoView({ block: "center" }); } catch {} }, 0); }}
-        onChange={(e) => onCommit(e.currentTarget.value)}
+        onBlur={(e) => onCommit(e.currentTarget.value)}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); onCommit(e.currentTarget.value); focusNext(i, p); } }}
       />
     </td>
